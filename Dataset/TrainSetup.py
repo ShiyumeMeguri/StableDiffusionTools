@@ -138,12 +138,12 @@ def main(dataset_path, folder_name, use_blip):
     network_dim = 64
     
     use_type = "LoRA"
-    lora_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=4, training_type=use_type)
-    create_batch_file(img_dst, lora_toml_file, folder_name, num_images, training_type=use_type, num_cpu=1, lr=1e-4, train_step=5000, network_dim=network_dim, conv_dim=conv_dim)
+    lora_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=28, training_type=use_type)
+    create_batch_file(img_dst, lora_toml_file, folder_name, num_images, training_type=use_type, num_cpu=1, lr=3e-5, train_step=800, network_dim=network_dim, conv_dim=conv_dim)
     
     use_type = "LyCORIS"
-    lora_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=4, training_type=use_type)
-    create_batch_file(img_dst, lora_toml_file, folder_name, num_images, training_type=use_type, num_cpu=1, lr=1e-4, train_step=2500, network_dim=network_dim, conv_dim=conv_dim)
+    lora_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=28, training_type=use_type)
+    create_batch_file(img_dst, lora_toml_file, folder_name, num_images, training_type=use_type, num_cpu=1, lr=3e-5, train_step=800, network_dim=network_dim, conv_dim=conv_dim)
 
 if __name__ == "__main__":
     # 解析命令行参数
