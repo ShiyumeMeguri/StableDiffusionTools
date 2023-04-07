@@ -81,7 +81,7 @@ batch_size = {batch_size}
     return toml_file
 
 def create_batch_file(img_dst, toml_file, folder_name, num_images, training_type, num_cpu, lr, train_step, network_dim=8, conv_dim=8):
-    save_every_n_epochs = 1  # max(1, min(20, 1000 // num_images))
+    save_every_n_epochs = max(1, min(20, 1000 // num_images))
     
     if training_type == "LoRA":
         train_script = "train_network"
@@ -92,7 +92,7 @@ def create_batch_file(img_dst, toml_file, folder_name, num_images, training_type
     elif training_type == "FineTune":
         train_script = "fine_tune"
         
-    batch_content = f"""D:/sd-scripts/venv/Scripts/activate.bat && accelerate launch --num_cpu_threads_per_process {num_cpu} {sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="D:/DataSet/{folder_name}/model" --output_name={folder_name}{img_dst.name}_{training_type}cosine_with_restarts --dataset_config="{toml_file}" --save_model_as=ckpt --learning_rate={lr} --max_train_steps={train_step} --optimizer_type Lion --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="cosine_with_restarts" --sample_every_n_epochs 1 --sample_prompts "D:\DataSet\SamplePrompt.txt" --sample_sampler ddim """
+    batch_content = f"""D:/sd-scripts/venv/Scripts/activate.bat && accelerate launch --num_cpu_threads_per_process {num_cpu} {sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="D:/DataSet/{folder_name}/model" --output_name={folder_name}{img_dst.name}_{training_type}cosine --dataset_config="{toml_file}" --save_model_as=ckpt --learning_rate={lr} --max_train_steps={train_step} --optimizer_type Lion --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="cosine" --sample_every_n_epochs 1 --sample_prompts "D:\DataSet\SamplePrompt.txt" --sample_sampler ddim """
     #学习率动态调整方法有 linear, cosine, cosine_with_restarts, polynomial, constant, constant_with_warmup
     if training_type == "LoRA" or "LyCORIS":
         batch_content += f"""--network_module=networks.lora --network_train_unet_only --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" """
@@ -134,16 +134,16 @@ def main(dataset_path, folder_name, use_blip):
     #    conv_dim = 16
     #    network_dim = 16
     
-    conv_dim = 128
-    network_dim = 128
+    conv_dim = 64
+    network_dim = 64
     
     use_type = "LoRA"
-    lora_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=28, training_type=use_type)
-    create_batch_file(img_dst, lora_toml_file, folder_name, num_images, training_type=use_type, num_cpu=1, lr=1e-4, train_step=800, network_dim=network_dim, conv_dim=conv_dim)
+    lora_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=4, training_type=use_type)
+    create_batch_file(img_dst, lora_toml_file, folder_name, num_images, training_type=use_type, num_cpu=1, lr=1e-4, train_step=5000, network_dim=network_dim, conv_dim=conv_dim)
     
     use_type = "LyCORIS"
-    lora_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=16, training_type=use_type)
-    create_batch_file(img_dst, lora_toml_file, folder_name, num_images, training_type=use_type, num_cpu=1, lr=1e-4, train_step=800, network_dim=network_dim, conv_dim=conv_dim)
+    lora_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=4, training_type=use_type)
+    create_batch_file(img_dst, lora_toml_file, folder_name, num_images, training_type=use_type, num_cpu=1, lr=1e-4, train_step=2500, network_dim=network_dim, conv_dim=conv_dim)
 
 if __name__ == "__main__":
     # 解析命令行参数
