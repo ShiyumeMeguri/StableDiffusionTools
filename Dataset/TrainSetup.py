@@ -95,7 +95,7 @@ def merge_captions(img_dst, json_path, blip_prompt):
         subprocess.run(f'{sd_scripts_path}finetune/clean_captions_and_tags.py {json_path} {json_path}', shell=True)
 
 
-def create_toml_config(img_dst, json_path, folder_name, resolution, batch_size, training_type):
+def create_toml_config(img_dst, json_path, folder_name, resolution, batch_size, training_type, customName=""):
     toml_config = f"""[general]
 enable_bucket = true
 shuffle_caption = true
@@ -110,13 +110,13 @@ batch_size = {batch_size}
   metadata_file = '{json_path}'
 """
 
-    toml_file = f'{dataset_root_path}{folder_name}/{folder_name}{img_dst.name}_{training_type}.toml'
+    toml_file = f'{dataset_root_path}{folder_name}/{folder_name}{img_dst.name}_{training_type}{customName}.toml'
     with open(toml_file, 'w') as f:
         f.write(toml_config)
 
     return toml_file
 
-def create_batch_file(img_dst, toml_file, folder_name, num_images, training_type, num_cpu, lr, train_step, network_dim=8, conv_dim=8):
+def create_batch_file(img_dst, toml_file, folder_name, num_images, training_type, lr, train_step, network_dim=8, conv_dim=8):
     save_every_n_epochs = max(1, min(20, 1000 // num_images))
     
     network_module = None
@@ -130,15 +130,51 @@ def create_batch_file(img_dst, toml_file, folder_name, num_images, training_type
     elif training_type == "FineTune":
         train_script = "fine_tune"
         
-    batch_content = f"""{sd_scripts_path}venv/Scripts/activate.bat && accelerate launch --num_cpu_threads_per_process {num_cpu} {sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="{dataset_root_path}{folder_name}/model" --output_name={folder_name}{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{toml_file}" --save_model_as=ckpt --learning_rate={lr} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
+    batch_content = f"""{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="{dataset_root_path}{folder_name}/model" --output_name={folder_name}{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{toml_file}" --save_model_as=ckpt --learning_rate={lr} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
     #学习率动态调整方法有 linear, cosine, cosine_with_restarts, polynomial, constant, constant_with_warmup
     if training_type == "LoRA" or "LyCORIS":
         batch_content += f"""--network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" """# --network_train_unet_only
 
-    batch_content += f"""
-pause"""
+#    batch_content += f"""
+#pause"""
     
     batch_file = f'{dataset_root_path}{folder_name}/{folder_name}{img_dst.name}_{training_type}.bat'
+    with open(batch_file, 'w') as f:
+        f.write(batch_content)
+        
+def create_chara_batch_file(img_dst, toml_file1024, toml_file512, folder_name, num_images, training_type, lr, train_step, network_dim=1, conv_dim=1):
+    save_every_n_epochs = 1111
+    
+    network_module = None
+    
+    if training_type == "LoRA":
+        train_script = "train_network"
+        network_module = "networks.lora"
+    elif training_type == "LyCORIS":
+        train_script = "train_network"
+        network_module = "lycoris.kohya"
+    elif training_type == "FineTune":
+        train_script = "fine_tune"
+    
+    batch_content = ""
+    count = 1
+    
+    for i in range(4):
+        if count % 2 == 1:
+            current_toml_file = toml_file512
+        else:
+            current_toml_file = toml_file1024
+
+        batch_content += f"""{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="{dataset_root_path}{folder_name}/model" --output_name={count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{current_toml_file}" --save_model_as=ckpt --learning_rate={lr} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
+        if training_type == "LoRA" or "LyCORIS":
+            batch_content += f"""--network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora " 
+"""
+        if count -1 > 0:
+            batch_content += f"""--network_weights {count-1}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.ckpt " 
+"""
+        count += 1
+        
+    batch_file = f'{dataset_root_path}{folder_name}/{folder_name}{img_dst.name}_{training_type}_HighDiffuse.bat'
     with open(batch_file, 'w') as f:
         f.write(batch_content)
 
@@ -165,15 +201,15 @@ def main(dataset_path, folder_name):
     conv_dim = 16
     network_dim = 16
     
-    over_batch_size_lora = batch_size_lora
-    over_learning_rate_lora = learning_rate_lora
+    is_chara = False
     if dataset_path.name == "Chara":
-        conv_dim = 1
-        network_dim = 1
-        over_batch_size_lora = 1
-        over_learning_rate_lora = 3e-5
-        print(f"检测到角色Lora文件夹 强制调整维度批次为1 学习率3e-5")
-    #elif dataset_path.name == "Style" or "Background" or "Object":
+        chara_train_type = "LoRA"
+        is_chara = True
+        lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=1, training_type=chara_train_type, customName="_HighDiffuse1024")
+        lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=1, training_type=chara_train_type, customName="_HighDiffuse512")
+        create_chara_batch_file(img_dst, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type="LoRA", lr=1e-3, train_step=100, network_dim=1, conv_dim=1)
+        print(f"检测到角色Lora文件夹 生成高泛化训练策略")
+    #elif dataset_path.name == "Style" or "Back ground" or "Object":
     #    conv_dim = 8
     #    network_dim = 8
     #elif dataset_path.name == "Full":
@@ -183,16 +219,16 @@ def main(dataset_path, folder_name):
     
     use_type = "FineTune"
     fine_tune_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=resolution_finetune, batch_size=1, training_type=use_type)
-    create_batch_file(img_dst, fine_tune_toml_file, folder_name, num_images, training_type=use_type, num_cpu=1, lr=learning_rate_finetune, train_step=train_step_finetune)
+    create_batch_file(img_dst, fine_tune_toml_file, folder_name, num_images, training_type=use_type, lr=learning_rate_finetune, train_step=train_step_finetune)
     
     
     use_type = "LoRA"
-    lora_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=resolution_lora, batch_size=over_batch_size_lora, training_type=use_type)
-    create_batch_file(img_dst, lora_toml_file, folder_name, num_images, training_type=use_type, num_cpu=1, lr=over_learning_rate_lora, train_step=int(over_batch_size_lora) * 200, network_dim=network_dim, conv_dim=conv_dim)
+    lora_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=resolution_lora, batch_size=batch_size_lora, training_type=use_type)
+    create_batch_file(img_dst, lora_toml_file, folder_name, num_images, training_type=use_type, lr=learning_rate_lora, train_step=int(batch_size_lora) * 200, network_dim=network_dim, conv_dim=conv_dim)
     
     use_type = "LyCORIS"
-    lora_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=resolution_lora, batch_size=over_batch_size_lora, training_type=use_type)
-    create_batch_file(img_dst, lora_toml_file, folder_name, num_images, training_type=use_type, num_cpu=1, lr=over_learning_rate_lora, train_step=int(over_batch_size_lora) * 200, network_dim=network_dim, conv_dim=conv_dim)
+    lora_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=resolution_lora, batch_size=batch_size_lora, training_type=use_type)
+    create_batch_file(img_dst, lora_toml_file, folder_name, num_images, training_type=use_type, lr=learning_rate_lora, train_step=int(batch_size_lora) * 200, network_dim=network_dim, conv_dim=conv_dim)
 
 if __name__ == "__main__":
     # 解析命令行参数
