@@ -3,10 +3,29 @@ import os
 import shutil
 import glob
 from pathlib import Path
+from PIL import Image
 import subprocess
+import configparser
 
-def create_folder_structure(dataset_path, folder_name):
-    base_path = Path("D:/DataSet")
+config = configparser.ConfigParser()
+config.read('TrainSetupConfig.ini')
+
+base_model = config.get('DEFAULT', 'model_path')
+sd_scripts_path = config.get('DEFAULT', 'sd_scripts_path')
+dataset_root_path = config.get('DEFAULT', 'dataset_root_path')
+lr_scheduler = config.get('DEFAULT', 'lr_scheduler')
+learning_rate_finetune = config.get('DEFAULT', 'learning_rate_finetune')
+train_step_finetune = config.get('DEFAULT', 'train_step_finetune')
+learning_rate_lora = config.get('DEFAULT', 'learning_rate_lora')
+resolution_finetune = config.get('DEFAULT', 'resolution_finetune')
+batch_size_lora = config.get('DEFAULT', 'batch_size_lora')
+resolution_lora = config.get('DEFAULT', 'resolution_lora')
+use_blip = config.getboolean('DEFAULT', 'use_blip')
+#缓存潜在空间
+#python prepare_buckets_latents.py --full_path D:\DataSet\BlueArchiveAnime\img\Style D:\DataSet\BlueArchiveAnime\meta_cap_Style.json D:\DataSet\BlueArchiveAnime\meta_cap_Style_prepare_buckets_latents.json D:/stable-diffusion-webui/models/_TempModel/NovelAI/animefull-latest.ckpt --batch_size 4 --max_resolution 512 --mixed_precision fp16
+
+def create_folder_structure(dataset_root_path, dataset_path, folder_name):
+    base_path = Path(dataset_root_path)
     target_folder = base_path / folder_name
     img_folder = target_folder / 'img'
     model_folder = target_folder / 'model'
@@ -20,7 +39,7 @@ def create_folder_structure(dataset_path, folder_name):
 
     return img_dst
 
-def run_scripts(img_dst, num_images, folder_name, use_blip):
+def run_scripts(img_dst, num_images, folder_name):
     img_dst_str = str(img_dst)
 
     blip_prompt = False
@@ -37,12 +56,29 @@ def run_scripts(img_dst, num_images, folder_name, use_blip):
         print('找到txt文件, 跳过 tag_images_by_wd14_tagger.py')
 
     return blip_prompt
+    
+def flip_images(img_dst):
+    for file in os.listdir(img_dst):
+        if file.endswith(".jpg") or file.endswith(".png") or file.endswith(".bmp"):
+            img = Image.open(os.path.join(img_dst, file)).convert("RGB")
+            flipped_img = img.transpose(Image.FLIP_LEFT_RIGHT)
+            flipped_img.save(os.path.join(img_dst, os.path.splitext(file)[0] + "_flip.jpg"), quality=90)
 
+            # 查找同名的文本文件
+            txt_file = os.path.splitext(file)[0] + ".txt"
+            txt_path = os.path.join(img_dst, txt_file)
+            if os.path.isfile(txt_path):
+                # 如果存在同名的文本文件，则复制一份到翻转后的图片的同一目录下
+                flipped_txt_path = os.path.join(img_dst, os.path.splitext(file)[0] + "_flip.txt")
+                with open(txt_path, "r") as f_in, open(flipped_txt_path, "w") as f_out:
+                    f_out.write(f_in.read())
+    print("翻转图片完成.")
+    
 def data_augmentation(img_dst, num_images):
     has_flipped_images = any('_flip' in f for f in os.listdir(img_dst))
     if num_images < 1000 and not has_flipped_images:
         print(f'图片少于1000,总数量: "{num_images}" 开启数据增强')
-        subprocess.run(f'D:/DataSet/ImageFlipTool.py --path "{img_dst}"', shell=True)
+        flip_images(img_dst)
         return True
     elif has_flipped_images:
         print('文件夹已包含_flipped结尾的图片，跳过数据增强')
@@ -74,7 +110,7 @@ batch_size = {batch_size}
   metadata_file = '{json_path}'
 """
 
-    toml_file = f'D:/DataSet/{folder_name}/{folder_name}{img_dst.name}_{training_type}.toml'
+    toml_file = f'{dataset_root_path}{folder_name}/{folder_name}{img_dst.name}_{training_type}.toml'
     with open(toml_file, 'w') as f:
         f.write(toml_config)
 
@@ -82,6 +118,8 @@ batch_size = {batch_size}
 
 def create_batch_file(img_dst, toml_file, folder_name, num_images, training_type, num_cpu, lr, train_step, network_dim=8, conv_dim=8):
     save_every_n_epochs = max(1, min(20, 1000 // num_images))
+    
+    network_module = None
     
     if training_type == "LoRA":
         train_script = "train_network"
@@ -92,26 +130,30 @@ def create_batch_file(img_dst, toml_file, folder_name, num_images, training_type
     elif training_type == "FineTune":
         train_script = "fine_tune"
         
-    batch_content = f"""D:/sd-scripts/venv/Scripts/activate.bat && accelerate launch --num_cpu_threads_per_process {num_cpu} {sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="D:/DataSet/{folder_name}/model" --output_name={folder_name}{img_dst.name}_{training_type}cosine --dataset_config="{toml_file}" --save_model_as=ckpt --learning_rate={lr} --max_train_steps={train_step} --optimizer_type Lion --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="cosine" --sample_every_n_epochs 1 --sample_prompts "D:\DataSet\SamplePrompt.txt" --sample_sampler ddim """
+    batch_content = f"""{sd_scripts_path}venv/Scripts/activate.bat && accelerate launch --num_cpu_threads_per_process {num_cpu} {sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="{dataset_root_path}{folder_name}/model" --output_name={folder_name}{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{toml_file}" --save_model_as=ckpt --learning_rate={lr} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
     #学习率动态调整方法有 linear, cosine, cosine_with_restarts, polynomial, constant, constant_with_warmup
     if training_type == "LoRA" or "LyCORIS":
-        batch_content += f"""--network_module=networks.lora --network_train_unet_only --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" """
+        batch_content += f"""--network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" """# --network_train_unet_only
 
-    batch_file = f'D:/DataSet/{folder_name}/{folder_name}{img_dst.name}_{training_type}.bat'
+    batch_content += f"""
+pause"""
+    
+    batch_file = f'{dataset_root_path}{folder_name}/{folder_name}{img_dst.name}_{training_type}.bat'
     with open(batch_file, 'w') as f:
         f.write(batch_content)
 
-def main(dataset_path, folder_name, use_blip):
+def main(dataset_path, folder_name):
+    
     dataset_path = Path(dataset_path)
-    img_dst = create_folder_structure(dataset_path, folder_name)
+    img_dst = create_folder_structure(dataset_root_path, dataset_path, folder_name)
     num_images = len([f for f in os.listdir(img_dst) if os.path.isfile(os.path.join(img_dst, f)) and f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))])
 
-    blip_prompt = run_scripts(img_dst, num_images, folder_name, use_blip)
+    blip_prompt = run_scripts(img_dst, num_images, folder_name)
     has_flipped_images = data_augmentation(img_dst, num_images)
     if has_flipped_images:
         num_images *= 2
 
-    json_path = f'D:/DataSet/{folder_name}/meta_cap_{img_dst.name}.json'
+    json_path = f'{dataset_root_path}{folder_name}/meta_cap_{img_dst.name}.json'
 
     # 检查文件是否存在，如果存在则删除
     if os.path.exists(json_path):
@@ -120,43 +162,46 @@ def main(dataset_path, folder_name, use_blip):
     # 合并提示
     merge_captions(img_dst, json_path, blip_prompt)
 
-    use_type = "FineTune"
-    fine_tune_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=1, training_type=use_type)
-    create_batch_file(img_dst, fine_tune_toml_file, folder_name, num_images, training_type=use_type, num_cpu=1, lr=2e-6, train_step=10000)
+    conv_dim = 16
+    network_dim = 16
     
-    #if folder_name == "Chara":
-    #    conv_dim = 1
-    #    network_dim = 1
-    #elif folder_name == "Style" or "Background" or "Object":
+    over_batch_size_lora = batch_size_lora
+    over_learning_rate_lora = learning_rate_lora
+    if dataset_path.name == "Chara":
+        conv_dim = 1
+        network_dim = 1
+        over_batch_size_lora = 1
+        over_learning_rate_lora = 3e-5
+        print(f"检测到角色Lora文件夹 强制调整维度批次为1 学习率3e-5")
+    #elif dataset_path.name == "Style" or "Background" or "Object":
     #    conv_dim = 8
     #    network_dim = 8
-    #elif folder_name == "Full":
+    #elif dataset_path.name == "Full":
     #    conv_dim = 16
     #    network_dim = 16
     
-    conv_dim = 64
-    network_dim = 64
+    
+    use_type = "FineTune"
+    fine_tune_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=resolution_finetune, batch_size=1, training_type=use_type)
+    create_batch_file(img_dst, fine_tune_toml_file, folder_name, num_images, training_type=use_type, num_cpu=1, lr=learning_rate_finetune, train_step=train_step_finetune)
+    
     
     use_type = "LoRA"
-    lora_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=28, training_type=use_type)
-    create_batch_file(img_dst, lora_toml_file, folder_name, num_images, training_type=use_type, num_cpu=1, lr=3e-5, train_step=800, network_dim=network_dim, conv_dim=conv_dim)
+    lora_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=resolution_lora, batch_size=over_batch_size_lora, training_type=use_type)
+    create_batch_file(img_dst, lora_toml_file, folder_name, num_images, training_type=use_type, num_cpu=1, lr=over_learning_rate_lora, train_step=int(over_batch_size_lora) * 200, network_dim=network_dim, conv_dim=conv_dim)
     
     use_type = "LyCORIS"
-    lora_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=28, training_type=use_type)
-    create_batch_file(img_dst, lora_toml_file, folder_name, num_images, training_type=use_type, num_cpu=1, lr=3e-5, train_step=800, network_dim=network_dim, conv_dim=conv_dim)
+    lora_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=resolution_lora, batch_size=over_batch_size_lora, training_type=use_type)
+    create_batch_file(img_dst, lora_toml_file, folder_name, num_images, training_type=use_type, num_cpu=1, lr=over_learning_rate_lora, train_step=int(over_batch_size_lora) * 200, network_dim=network_dim, conv_dim=conv_dim)
 
 if __name__ == "__main__":
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='自动化配置数据集.')
     parser.add_argument('path', type=str, help='the folder path to process')
     parser.add_argument('name', type=str, help='folder parent name')
-    parser.add_argument('--blip', action='store_true', help='使用 blip 生成prompt')
-    args = parser.parse_args()
 
-    base_model = "D:/stable-diffusion-webui/models/_TempModel/NovelAI/animefull-latest.ckpt"
-    sd_scripts_path = "D:/sd-scripts/"
+    args = parser.parse_args()
 
     dataset_path = args.path
     folder_name = args.name
-    use_blip = args.blip
-    main(dataset_path, folder_name, use_blip)
+    main(dataset_path, folder_name)
