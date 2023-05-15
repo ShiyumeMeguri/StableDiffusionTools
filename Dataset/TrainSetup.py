@@ -166,11 +166,10 @@ def create_chara_batch_file(img_dst, toml_file1024, toml_file512, folder_name, n
             current_toml_file = toml_file1024
 
         batch_content += f"""{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="{dataset_root_path}{folder_name}/model" --output_name={count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{current_toml_file}" --save_model_as=ckpt --learning_rate={lr} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
+        if count -1 > 0:
+            batch_content += f"""--network_weights {count-1}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.ckpt """
         if training_type == "LoRA" or "LyCORIS":
             batch_content += f"""--network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora " 
-"""
-        if count -1 > 0:
-            batch_content += f"""--network_weights {count-1}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.ckpt " 
 """
         count += 1
         
