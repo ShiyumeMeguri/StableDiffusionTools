@@ -167,7 +167,7 @@ def create_chara_batch_file(img_dst, toml_file1024, toml_file512, folder_name, n
 
         batch_content += f"""{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="{dataset_root_path}{folder_name}/model" --output_name={count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{current_toml_file}" --save_model_as=ckpt --learning_rate={lr} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
         if count -1 > 0:
-            batch_content += f"""--network_weights {count-1}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.ckpt """
+            batch_content += f"""--network_weights model\{count-1}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.ckpt """
         if training_type == "LoRA" or "LyCORIS":
             batch_content += f"""--network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora " 
 """
@@ -184,9 +184,9 @@ def main(dataset_path, folder_name):
     num_images = len([f for f in os.listdir(img_dst) if os.path.isfile(os.path.join(img_dst, f)) and f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))])
 
     blip_prompt = run_scripts(img_dst, num_images, folder_name)
-    has_flipped_images = data_augmentation(img_dst, num_images)
-    if has_flipped_images:
-        num_images *= 2
+    #has_flipped_images = data_augmentation(img_dst, num_images)
+    #if has_flipped_images:
+    #    num_images *= 2
 
     json_path = f'{dataset_root_path}{folder_name}/meta_cap_{img_dst.name}.json'
 
