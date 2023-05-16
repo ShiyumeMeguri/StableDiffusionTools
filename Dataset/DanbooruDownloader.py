@@ -37,6 +37,18 @@ def download_image(image_id, save_path):
     # Update save_path with the correct file extension
     save_path = os.path.splitext(save_path)[0] + '.' + file_ext
 
+    # If file extension is jpg, check if png version exists
+    if file_ext == 'jpg':
+        png_path = os.path.splitext(save_path)[0] + '.png'
+        if os.path.exists(png_path):
+            print(f'PNG version of {image_id} already exists, skipping JPG.')
+        return None
+            
+    # If file extension is not jpg or png, skip
+    if file_ext not in ['jpg', 'png']:
+        print(f'File {image_id} is not a JPG or PNG, skipping.')
+        return None
+        
     # Get the image URL
     file_url = data['file_url']
 
@@ -46,24 +58,13 @@ def download_image(image_id, save_path):
     with open(save_path, 'wb') as f:
         f.write(response.content)
 
-    # Convert to JPEG if necessary
-    if file_ext not in ['jpg', 'jpeg']:
-        try:
-            img = Image.open(save_path)
-            img = img.convert('RGB')
-            save_path = os.path.splitext(save_path)[0] + '.jpg'
-            img.save(save_path)
-        except Exception as e:
-            print(f'Error converting {save_path} to JPEG: {e}')
-
     # Save tags in a text file
     tag_file = os.path.splitext(save_path)[0] + '.txt'
     with open(tag_file, 'w') as f:
         f.write(', '.join(tags))
 
-    # Return tags as a comma-separated string
-    tag_str = ', '.join(tags)
-    return tag_str
+    # Return tags and file extension as a tuple
+    return tags
 
 def download_artist_images(artist_tag, output_dir):
     if not os.path.exists(output_dir):
@@ -76,9 +77,9 @@ def download_artist_images(artist_tag, output_dir):
             break
 
         for image_id in image_ids:
-            save_path = os.path.join(output_dir, f'{image_id}.jpg')
+            save_path = os.path.join(output_dir, f'{image_id}')
             tags = download_image(image_id, save_path)
-            print(f'Downloaded {image_id}.jpg with {tags}')
+            print(f'Downloaded {image_id} with {tags}')  # Correct the file extension in the print statement
 
         page += 1
 
