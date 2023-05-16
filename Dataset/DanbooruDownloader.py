@@ -7,20 +7,20 @@ from bs4 import BeautifulSoup
 def get_image_ids(tag, page):
     url = f'https://danbooru.donmai.us/posts.json?tags={tag}&page={page}&limit=200'
     response = requests.get(url)
+    if response.status_code != 200:
+        print(f"Error getting image IDs: {response.status_code}")
+        return []
     data = response.json()
 
     return [str(post['id']) for post in data]
-
-def get_image_tags(image_id):
-    url = f'https://danbooru.donmai.us/posts/{image_id}.json'
-    response = requests.get(url)
-    data = response.json()
-
-    return data['tag_string'].split(' ')
     
 def download_image(image_id, save_path):
+        
     url = f'https://danbooru.donmai.us/posts/{image_id}.json'
     response = requests.get(url)
+    if response.status_code != 200:
+        print(f"Error getting image {image_id}: {response.status_code}")
+        return None
     data = response.json()
 
     # Check if file_url exists
@@ -30,30 +30,38 @@ def download_image(image_id, save_path):
 
     # Get image tags
     tags = data['tag_string'].split(' ')
-
+    
     # Get file extension
     file_ext = data['file_ext']
 
     # Update save_path with the correct file extension
     save_path = os.path.splitext(save_path)[0] + '.' + file_ext
 
+    # Check if the image file already exists
+    if os.path.exists(save_path):
+        return "File already exists, skipping"
+        
+    # If file extension is not jpg or png, skip
+    if file_ext not in ['jpg', 'png']:
+        return "Skipping other formats"
+        
     # If file extension is jpg, check if png version exists
     if file_ext == 'jpg':
         png_path = os.path.splitext(save_path)[0] + '.png'
         if os.path.exists(png_path):
             print(f'PNG version of {image_id} already exists, skipping JPG.')
-        return None
+            return None
             
-    # If file extension is not jpg or png, skip
-    if file_ext not in ['jpg', 'png']:
-        print(f'File {image_id} is not a JPG or PNG, skipping.')
-        return None
         
     # Get the image URL
     file_url = data['file_url']
-
+    print(file_url)
+    
     # Download the image
     response = requests.get(file_url)
+    if response.status_code != 200:
+        print(f"Error downloading image {image_id}: {response.status_code}")
+        return None
 
     with open(save_path, 'wb') as f:
         f.write(response.content)
@@ -92,7 +100,5 @@ if __name__ == '__main__':
         output_dir = artist_tag
 
     download_artist_images(artist_tag, output_dir)
-artist_tag = 'quan_%28kurisu_tina%29'
-output_dir = 'download'
 
 download_artist_images(artist_tag, output_dir)
