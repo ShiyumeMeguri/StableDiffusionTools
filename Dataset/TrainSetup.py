@@ -2,6 +2,7 @@ import argparse
 import os
 import shutil
 import glob
+import json
 from pathlib import Path
 from PIL import Image
 import subprocess
@@ -142,7 +143,7 @@ def create_batch_file(img_dst, toml_file, folder_name, num_images, training_type
     with open(batch_file, 'w') as f:
         f.write(batch_content)
         
-def create_chara_batch_file(img_dst, toml_file1024, toml_file512, folder_name, num_images, training_type, lr, train_step, network_dim=1, conv_dim=1):
+def create_chara_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_name, num_images, training_type, lr, train_step, network_dim=1, conv_dim=1):
     save_every_n_epochs = 1111
     
     network_module = None
@@ -156,10 +157,45 @@ def create_chara_batch_file(img_dst, toml_file1024, toml_file512, folder_name, n
     elif training_type == "FineTune":
         train_script = "fine_tune"
     
+    def process_json_file(file_path, tags):
+        with open(file_path, 'r') as f:
+                data = json.load(f)
+        
+        tags_array = tags.split(',')
+        
+        # 初始化一个新的字典来存放处理后的数据
+        new_data = {}
+        
+        # 遍历json文件中的所有节点
+        for key, value in data.items():
+            # 检查caption是否以数组第一个字符串为开头
+            if value["caption"].startswith(tags_array[0]):
+                # 如果是，那么查找里面有没有剩余的tag
+                remaining_tags = [tags_array[0]] + [tag for tag in tags_array[1:] if tag in value["caption"]]
+                
+                # 如果有，就只保留这些tag，其他的tag全部删除
+                if remaining_tags:
+                    new_data[key] = {"caption": ", ".join(remaining_tags)}
+            
+        output_file_path = file_path.replace('.json', '_CharaPrompt.json')
+        with open(output_file_path, 'w') as f:
+            json.dump(new_data, f, indent=2)
+
+    
     batch_content = ""
+    batch_add_content = ""
     count = 1
     
-    for i in range(4):
+    for i in range(12):
+        if i > 3:
+            lr = 0.0001
+            train_step = 400
+        if i > 7:
+            lr = 0.001
+            train_step = 200
+            process_json_file(json_path, args.chara)
+            batch_add_content = "--network_train_text_encoder_only"
+            
         if count % 2 == 1:
             current_toml_file = toml_file512
         else:
@@ -169,15 +205,18 @@ def create_chara_batch_file(img_dst, toml_file1024, toml_file512, folder_name, n
         if count -1 > 0:
             batch_content += f"""--network_weights model\{count-1}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.ckpt """
         if training_type == "LoRA" or "LyCORIS":
-            batch_content += f"""--network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora " 
+            batch_content += f"""--network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" {batch_add_content}  
 """
         count += 1
+        #--network_train_text_encoder_only
         
     batch_file = f'{dataset_root_path}{folder_name}/{folder_name}{img_dst.name}_{training_type}_HighDiffuse.bat'
     with open(batch_file, 'w') as f:
         f.write(batch_content)
 
-def main(dataset_path, folder_name):
+def main():
+    dataset_path = args.path
+    folder_name = args.name
     
     dataset_path = Path(dataset_path)
     img_dst = create_folder_structure(dataset_root_path, dataset_path, folder_name)
@@ -206,8 +245,8 @@ def main(dataset_path, folder_name):
         is_chara = True
         lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=1, training_type=chara_train_type, customName="_HighDiffuse1024")
         lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=1, training_type=chara_train_type, customName="_HighDiffuse512")
-        create_chara_batch_file(img_dst, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type="LoRA", lr=1e-3, train_step=100, network_dim=1, conv_dim=1)
-        print(f"检测到角色Lora文件夹 生成高泛化训练策略")
+        create_chara_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type="LoRA", lr=1e-3, train_step=100, network_dim=4, conv_dim=2)
+        print(f"检测到角色Lora文件夹 生成高泛化训练策略-对于简单的角色形象 学到4就够了 对于独有形象 例如鷲見セリナ的羽毛侧发需要进入低学习率学习")
     #elif dataset_path.name == "Style" or "Back ground" or "Object":
     #    conv_dim = 8
     #    network_dim = 8
@@ -229,14 +268,12 @@ def main(dataset_path, folder_name):
     lora_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=resolution_lora, batch_size=batch_size_lora, training_type=use_type)
     create_batch_file(img_dst, lora_toml_file, folder_name, num_images, training_type=use_type, lr=learning_rate_lora, train_step=int(batch_size_lora) * 200, network_dim=network_dim, conv_dim=conv_dim)
 
+# 解析命令行参数
+parser = argparse.ArgumentParser(description='自动化配置数据集.')
+parser.add_argument('path', type=str, help='the folder path to process')
+parser.add_argument('name', type=str, help='folder parent name')
+parser.add_argument('--chara', type=str, help='chara prompt')
+
+args = parser.parse_args()
 if __name__ == "__main__":
-    # 解析命令行参数
-    parser = argparse.ArgumentParser(description='自动化配置数据集.')
-    parser.add_argument('path', type=str, help='the folder path to process')
-    parser.add_argument('name', type=str, help='folder parent name')
-
-    args = parser.parse_args()
-
-    dataset_path = args.path
-    folder_name = args.name
-    main(dataset_path, folder_name)
+    main()
