@@ -79,7 +79,7 @@ def main(input: str, inputB: str):
         # Turn off interactive mode
         plt.ioff()
         # Saving the plot
-        plt.savefig(f"{save_dir}/{idx}.png")
+        plt.savefig(f"{save_dir}/{tensor_name} {idx}.png")
         plt.close()
 
     for layer_name, tensor in input_model.items():
