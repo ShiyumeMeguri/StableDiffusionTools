@@ -10,6 +10,9 @@ def load_model(path: Path, device: str) -> dict[str, torch.Tensor]:
     if path.suffix == ".safetensors":
         from safetensors.torch import load_file
         return load_file(path, device=device)
+    elif path.suffix == ".pth":
+        pth = torch.load(path, map_location=device)
+        return pth["model"]
     else:
         ckpt = torch.load(path, map_location=device)
         return ckpt.get("state_dict", ckpt)

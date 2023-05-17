@@ -68,14 +68,15 @@ def save_state_dict(state: dict[str, Any], path: str, format: Literal["ckpt", "s
         state = {k: v.contiguous().to_dense() for k, v in state.items()}
         save_file(state, path)
 
-def load_model(path: Path, device: str, print_ptl_info: bool = False) -> dict[str, torch.Tensor]:
+def load_model(path: Path, device: str) -> dict[str, torch.Tensor]:
     if path.suffix == ".safetensors":
         from safetensors.torch import load_file
         return load_file(path, device=device)
+    elif path.suffix == ".pth":
+        pth = torch.load(path, map_location=device)
+        return pth["model"]
     else:
         ckpt = torch.load(path, map_location=device)
-        if print_ptl_info and ("epoch" in ckpt and "global_step" in ckpt):
-            print(f"[I] {path.name}: epoch {ckpt['epoch']}, step {ckpt['global_step']}")
         return ckpt.get("state_dict", ckpt)
 
 re_digits = re.compile(r"\d+")
