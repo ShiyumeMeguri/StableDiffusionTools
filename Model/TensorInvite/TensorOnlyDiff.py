@@ -24,6 +24,28 @@ def main(input: str, inputB: str):
     input_model = load_model(input, "cpu")
     inputB_model = load_model(inputB, "cpu")
 
+    # Create directory for tensor if it doesn't exist
+    save_dir = f"{input.stem} - {inputB.stem}"
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    diff_ratios = {}
+    for layer_name, tensor in input_model.items():
+        if layer_name in inputB_model:
+            # Calculating ratio
+            meanA = torch.mean(torch.abs(tensor))
+            meanB = torch.mean(torch.abs(inputB_model[layer_name]))
+            diff_ratio = meanA / meanB if meanB != 0 else 0
+            diff_ratios[layer_name] = diff_ratio
+        else:
+            # 处理B模型缺少A模型层的情况
+            continue
+
+    # Save the diff_ratios to a txt file
+    with open(f"{save_dir}/Diff_Ratios.txt", "w") as f:
+        for layer_name, diff_ratio in diff_ratios.items():
+            f.write(f"{diff_ratio:.3f}\t\t:\t\t{layer_name}\n")
+            
     # 张量可视化2 转1维
     def visualize_tensor1d(tensor_A, tensor_B, tensor_name):
         # Compute difference between tensor_A and tensor_B
@@ -32,6 +54,11 @@ def main(input: str, inputB: str):
         # Skip if all values are zero
         if torch.all(tensor == 0):
             return
+        
+        # Calculating ratio
+        meanA = torch.mean(torch.abs(tensor_A))
+        meanB = torch.mean(torch.abs(tensor_B))
+        diff_ratio = meanA / meanB if meanB != 0 else 0
             
         # Create directory for tensor if it doesn't exist
         save_dir = f"{input.stem} ^ {inputB.stem}/{tensor_name}"
@@ -44,22 +71,22 @@ def main(input: str, inputB: str):
         y_range = y_max - y_min
         
         if len(tensor.shape) == 1:  # for 1D tensor
-            visualize_1d_tensor(tensor.view(-1), save_dir, tensor_name, idx=tensor.shape, y_range=y_range)
+            visualize_1d_tensor(tensor.view(-1), save_dir, tensor_name, tensor.shape, y_range, diff_ratio)
         elif len(tensor.shape) == 2:  # for 2D tensor
-            visualize_1d_tensor(tensor[:, :].view(-1), save_dir, tensor_name, idx=tensor.shape, y_range=y_range)
+            visualize_1d_tensor(tensor[:, :].view(-1), save_dir, tensor_name, tensor.shape, y_range, diff_ratio)
 
         elif len(tensor.shape) == 3:  # for 3D tensor
             c = tensor.shape[-1]  # assume the last dimension is the channel
             for i in range(c):
-                visualize_1d_tensor(tensor[:, :, i].view(-1), save_dir, tensor_name, idx=f"{tensor.shape}_{i}", y_range=y_range)
+                visualize_1d_tensor(tensor[:, :, i].view(-1), save_dir, tensor_name, f"{tensor.shape}_{i}", y_range, diff_ratio)
 
         elif len(tensor.shape) == 4:  # for 4D tensor
             h, w, c1, c2 = tensor.shape  # assume the last two dimensions are the channels
             for i in range(c1):
                 for j in range(c2):
-                    visualize_1d_tensor(tensor[:, :, i, j].view(-1), save_dir, tensor_name, idx=f"{tensor.shape}_{h}x{w}_{i}_{j}", y_range=y_range)
+                    visualize_1d_tensor(tensor[:, :, i, j].view(-1), save_dir, tensor_name, f"{tensor.shape}_{h}x{w}_{i}_{j}", y_range, diff_ratio)
 
-    def visualize_1d_tensor(tensor_1d, save_dir, tensor_name, idx, y_range):
+    def visualize_1d_tensor(tensor_1d, save_dir, tensor_name, idx, y_range, diff_ratio):
         # Creating x-axis data points
         x = np.arange(0, len(tensor_1d), 1)
 
@@ -75,6 +102,9 @@ def main(input: str, inputB: str):
         # Set the y-axis range based on the range of tensor_A values
         y_mean = torch.mean(tensor_1d).item()
         plt.ylim(y_mean - y_range/2, y_mean + y_range/2)
+
+        # Adding ratio text
+        plt.text(0.95, 0.95, f"Diff Ratio: {diff_ratio:.2f}", transform=plt.gca().transAxes, fontsize=12, ha='right', va='top')
 
         # Turn off interactive mode
         plt.ioff()
