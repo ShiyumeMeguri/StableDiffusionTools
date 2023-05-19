@@ -25,7 +25,7 @@ def main(input: str, inputB: str):
     inputB_model = load_model(inputB, "cpu")
 
     # Create directory for tensor if it doesn't exist
-    save_dir = f"{input.stem} - {inputB.stem}"
+    save_dir = f"{input.stem} ^ {inputB.stem}"
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
