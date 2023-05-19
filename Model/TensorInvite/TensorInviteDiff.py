@@ -33,8 +33,10 @@ def main(input: str, inputB: str):
     for layer_name, tensor in input_model.items():
         if layer_name in inputB_model:
             # Calculating ratio
+            tensor = tensor.float()
+            tensorB = inputB_model[layer_name].float()
             meanA = torch.mean(torch.abs(tensor))
-            meanB = torch.mean(torch.abs(inputB_model[layer_name]))
+            meanB = torch.mean(torch.abs(tensorB))
             diff_ratio = meanA / meanB if meanB != 0 else 0
             diff_ratios[layer_name] = diff_ratio
         else:
