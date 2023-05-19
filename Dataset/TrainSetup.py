@@ -186,15 +186,11 @@ def create_chara_batch_file(img_dst, json_path, toml_file1024, toml_file512, fol
     batch_add_content = ""
     count = 1
     
-    for i in range(12):
-        if i > 3:
+    for i in range(4):
+        if i > 1:
             lr = 0.0001
             train_step = 400
-        if i > 7:
-            lr = 0.001
-            train_step = 200
-            process_json_file(json_path, args.chara)
-            batch_add_content = "--network_train_text_encoder_only"
+            save_every_n_epochs = 2
             
         if count % 2 == 1:
             current_toml_file = toml_file512
@@ -203,7 +199,7 @@ def create_chara_batch_file(img_dst, json_path, toml_file1024, toml_file512, fol
 
         batch_content += f"""{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="{dataset_root_path}{folder_name}/model" --output_name={count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{current_toml_file}" --save_model_as=ckpt --learning_rate={lr} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
         if count -1 > 0:
-            batch_content += f"""--network_weights model\{count-1}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.ckpt """
+            batch_content += f"""--network_weights model/{count-1}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.ckpt """
         if training_type == "LoRA" or "LyCORIS":
             batch_content += f"""--network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" {batch_add_content}  
 """
@@ -223,9 +219,9 @@ def main():
     num_images = len([f for f in os.listdir(img_dst) if os.path.isfile(os.path.join(img_dst, f)) and f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))])
 
     blip_prompt = run_scripts(img_dst, num_images, folder_name)
-    #has_flipped_images = data_augmentation(img_dst, num_images)
-    #if has_flipped_images:
-    #    num_images *= 2
+    has_flipped_images = data_augmentation(img_dst, num_images)
+    if has_flipped_images:
+        num_images *= 2
 
     json_path = f'{dataset_root_path}{folder_name}/meta_cap_{img_dst.name}.json'
 
@@ -240,12 +236,12 @@ def main():
     network_dim = 16
     
     is_chara = False
-    if dataset_path.name == "Chara":
+    if args.chara != None:
         chara_train_type = "LoRA"
         is_chara = True
         lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=1, training_type=chara_train_type, customName="_HighDiffuse1024")
         lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=1, training_type=chara_train_type, customName="_HighDiffuse512")
-        create_chara_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type="LoRA", lr=1e-3, train_step=100, network_dim=4, conv_dim=2)
+        create_chara_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type="LoRA", lr=1e-3, train_step=100, network_dim=1, conv_dim=1)
         print(f"检测到角色Lora文件夹 生成高泛化训练策略-对于简单的角色形象 学到4就够了 对于独有形象 例如鷲見セリナ的羽毛侧发需要进入低学习率学习")
     #elif dataset_path.name == "Style" or "Back ground" or "Object":
     #    conv_dim = 8
