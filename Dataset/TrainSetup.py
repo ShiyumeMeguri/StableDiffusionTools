@@ -211,7 +211,7 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
             count += 1
             #--network_train_text_encoder_only
     
-    batch_file = f'{dataset_root_path}{folder_name}/{folder_name}{img_dst.name}_{training_type}.bat'
+    batch_file = f'{dataset_root_path}{folder_name}/{folder_name}_{img_dst.name}_{training_type}.bat'
     with open(batch_file, 'w') as f:
         f.write(batch_content)
 
