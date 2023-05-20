@@ -35,9 +35,10 @@ def main(input: str, inputB: str):
             # Calculating ratio
             tensor = tensor.float()
             tensorB = inputB_model[layer_name].float()
+            diff = torch.abs(tensor - tensorB)
+            mean_diff = torch.mean(diff)
             meanA = torch.mean(torch.abs(tensor))
-            meanB = torch.mean(torch.abs(tensorB))
-            diff_ratio = meanA / meanB if meanB != 0 else 0
+            diff_ratio = mean_diff / meanA if meanA != 0 else 0
             diff_ratios[layer_name] = diff_ratio
         else:
             # 处理B模型缺少A模型层的情况
@@ -46,20 +47,21 @@ def main(input: str, inputB: str):
     # Save the diff_ratios to a txt file
     with open(f"{save_dir}/Diff_Ratios.txt", "w") as f:
         for layer_name, diff_ratio in diff_ratios.items():
-            f.write(f"{diff_ratio:.3f}\t\t:\t\t{layer_name}\n")
+            f.write(f"{diff_ratio:.3%}".zfill(7) + "\t\t:\t\t" + f"{layer_name}::1.0\n")
+
             
     def visualize_tensor1d(tensor_A, tensor_B, tensor_name):
         # Compute difference between tensor_A and tensor_B
-        tensor_diff = tensor_A - tensor_B
-
+        tensor = torch.abs(tensor_A - tensor_B)
+        
         # Skip if all values are zero
-        if torch.all(tensor_diff == 0):
+        if torch.all(tensor == 0):
             return
         
         # Calculating ratio
+        mean_diff = torch.mean(tensor)
         meanA = torch.mean(torch.abs(tensor_A))
-        meanB = torch.mean(torch.abs(tensor_B))
-        diff_ratio = meanA / meanB if meanB != 0 else 0
+        diff_ratio = mean_diff / meanA if meanA != 0 else 0
 
         # Create directory for tensor if it doesn't exist
         save_dir = f"{input.stem} - {inputB.stem}/{tensor_name}"

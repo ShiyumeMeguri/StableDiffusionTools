@@ -134,7 +134,7 @@ def create_batch_file(img_dst, toml_file, folder_name, num_images, training_type
     batch_content = f"""{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="{dataset_root_path}{folder_name}/model" --output_name={folder_name}{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{toml_file}" --save_model_as=ckpt --learning_rate={lr} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
     #学习率动态调整方法有 linear, cosine, cosine_with_restarts, polynomial, constant, constant_with_warmup
     if training_type == "LoRA" or "LyCORIS":
-        batch_content += f"""--network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" """# --network_train_unet_only
+        batch_content += f""" --network_train_unet_only --network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" """# --network_train_unet_only
 
 #    batch_content += f"""
 #pause"""
@@ -189,7 +189,7 @@ def create_chara_batch_file(img_dst, json_path, toml_file1024, toml_file512, fol
     for i in range(4):
         if i > 1:
             lr = 0.0001
-            train_step = 400
+            train_step = 800
             save_every_n_epochs = 2
             
         if count % 2 == 1:
@@ -239,9 +239,9 @@ def main():
     if args.chara != None:
         chara_train_type = "LoRA"
         is_chara = True
-        lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=1, training_type=chara_train_type, customName="_HighDiffuse1024")
-        lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=1, training_type=chara_train_type, customName="_HighDiffuse512")
-        create_chara_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type="LoRA", lr=1e-3, train_step=100, network_dim=1, conv_dim=1)
+        lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=8, training_type=chara_train_type, customName="_HighDiffuse1024")
+        lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=32, training_type=chara_train_type, customName="_HighDiffuse512")
+        create_chara_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type="LoRA", lr=1e-3, train_step=500, network_dim=1, conv_dim=1)
         print(f"检测到角色Lora文件夹 生成高泛化训练策略-对于简单的角色形象 学到4就够了 对于独有形象 例如鷲見セリナ的羽毛侧发需要进入低学习率学习")
     #elif dataset_path.name == "Style" or "Back ground" or "Object":
     #    conv_dim = 8
