@@ -1,3 +1,4 @@
+import codecs
 import argparse
 import os
 import shutil
@@ -212,7 +213,7 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
             #--network_train_text_encoder_only
     
     batch_file = f'{dataset_root_path}{folder_name}/{folder_name}_{img_dst.name}_{training_type}.bat'
-    with open(batch_file, 'w') as f:
+    with codecs.open(batch_file, 'w', encoding='utf-8') as f:
         f.write(batch_content)
 
 def main():
