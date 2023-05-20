@@ -22,6 +22,8 @@ train_step_finetune = config.get('DEFAULT', 'train_step_finetune')
 learning_rate_lora = config.get('DEFAULT', 'learning_rate_lora')
 resolution_finetune = config.get('DEFAULT', 'resolution_finetune')
 batch_size_lora = config.get('DEFAULT', 'batch_size_lora')
+network_dim_lora = config.get('DEFAULT', 'network_dim_lora')
+network_dim_lycoris = config.get('DEFAULT', 'network_dim_lycoris')
 resolution_lora_low = config.get('DEFAULT', 'resolution_lora_low')
 resolution_lora_high = config.get('DEFAULT', 'resolution_lora_high')
 save_model_as = config.get('DEFAULT', 'save_model_as')
@@ -235,7 +237,7 @@ def main():
     
     use_type = "LyCORIS"
     lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=8, training_type=use_type, customName="_HighDiffuse1024")
-    lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=32, training_type=use_type, customName="_HighDiffuse512")
+    lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=28, training_type=use_type, customName="_HighDiffuse512")
     create_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type=use_type, lr=1e-3, train_step=500, network_dim=network_dim, conv_dim=conv_dim)
 
 # 解析命令行参数
