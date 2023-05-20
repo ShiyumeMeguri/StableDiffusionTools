@@ -21,7 +21,8 @@ learning_rate_finetune = config.get('DEFAULT', 'learning_rate_finetune')
 train_step_finetune = config.get('DEFAULT', 'train_step_finetune')
 learning_rate_lora = config.get('DEFAULT', 'learning_rate_lora')
 resolution_finetune = config.get('DEFAULT', 'resolution_finetune')
-batch_size_lora = config.get('DEFAULT', 'batch_size_lora')
+batch_size_lora_high = config.get('DEFAULT', 'batch_size_lora_high')
+batch_size_lora_low = config.get('DEFAULT', 'batch_size_lora_low')
 network_dim_lora = config.get('DEFAULT', 'network_dim_lora')
 network_dim_lycoris = config.get('DEFAULT', 'network_dim_lycoris')
 resolution_lora_low = config.get('DEFAULT', 'resolution_lora_low')
@@ -124,8 +125,13 @@ batch_size = {batch_size}
     return toml_file
         
 def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_name, num_images, training_type, lr, train_step, network_dim=1, conv_dim=1):
-    save_every_n_epochs = 2
-    
+    # Compute the number of steps per epoch
+    if num_images < batch_size:
+        temp_batch_size = num_images
+    else:
+        temp_batch_size = batch_size
+    save_every_n_epochs = math.ceil(1024 / (num_images * temp_batch_size))
+
     network_module = None
     
     if training_type == "LoRA":
@@ -223,7 +229,6 @@ def main():
     # 合并提示
     merge_captions(img_dst, json_path, blip_prompt)
 
-    network_dim = 128
     conv_dim = 4
     
     use_type = "FineTune"
@@ -231,14 +236,14 @@ def main():
     create_batch_file(img_dst, json_path, fine_tune_toml_file, fine_tune_toml_file, folder_name, num_images, training_type=use_type, lr=learning_rate_finetune, train_step=train_step_finetune)
     
     use_type = "LoRA"
-    lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=8, training_type=use_type, customName="_HighDiffuse1024")
-    lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=32, training_type=use_type, customName="_HighDiffuse512")
-    create_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type=use_type, lr=1e-3, train_step=500, network_dim=network_dim, conv_dim=conv_dim)
+    lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=batch_size_lora_high, training_type=use_type, customName="_HighDiffuse1024")
+    lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=batch_size_lora_low, training_type=use_type, customName="_HighDiffuse512")
+    create_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type=use_type, lr=1e-3, train_step=num_images, network_dim=network_dim_lora, conv_dim=conv_dim)
     
     use_type = "LyCORIS"
-    lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=8, training_type=use_type, customName="_HighDiffuse1024")
-    lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=28, training_type=use_type, customName="_HighDiffuse512")
-    create_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type=use_type, lr=1e-3, train_step=500, network_dim=network_dim, conv_dim=conv_dim)
+    lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=batch_size_lora_high, training_type=use_type, customName="_HighDiffuse1024")
+    lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=batch_size_lora_low, training_type=use_type, customName="_HighDiffuse512")
+    create_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type=use_type, lr=1e-3, train_step=num_images, network_dim=network_dim_lycoris, conv_dim=conv_dim)
 
 # 解析命令行参数
 parser = argparse.ArgumentParser(description='自动化配置数据集.')
