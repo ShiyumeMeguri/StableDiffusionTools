@@ -178,7 +178,8 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
     if "FineTune" in training_type:
         batch_content = f"""{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="{dataset_root_path}{folder_name}/model" --output_name={folder_name}{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{toml_file1024}" --save_model_as={save_model_as} --learning_rate={lr} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
     else:
-        for i in range(4):
+        #for i in range(4):
+        for i in range(2):
             if i > 1:
                 lr = 0.0001
                 temp_train_step = int(train_step) * 3
@@ -250,7 +251,7 @@ def main():
     use_type = "LyCORIS"
     lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=batch_size_lora_high, training_type=use_type, customName="_HighDiffuse1024")
     lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=batch_size_lora_low, training_type=use_type, customName="_HighDiffuse512")
-    create_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type=use_type, lr=1e-3, train_step=num_images, network_dim=network_dim_lycoris, conv_dim=conv_dim)
+    create_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type=use_type, lr=1e-3, train_step=math.ceil(int(num_images) / int(batch_size_lora_low)), network_dim=network_dim_lycoris, conv_dim=conv_dim)
 
 # 解析命令行参数
 parser = argparse.ArgumentParser(description='自动化配置数据集.')
