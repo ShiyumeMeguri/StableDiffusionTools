@@ -119,7 +119,7 @@ batch_size = {batch_size}
   metadata_file = '{json_path}'
 """
 
-    toml_file = f'{dataset_root_path}{folder_name}/{folder_name}{img_dst.name}_{training_type}{customName}.toml'
+    toml_file = f'{dataset_root_path}{folder_name}/{folder_name}_{img_dst.name}_{training_type}{customName}.toml'
     with open(toml_file, 'w') as f:
         f.write(toml_config)
 
@@ -176,7 +176,7 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
     batch_add_content = ""
     count = 1
     if "FineTune" in training_type:
-        batch_content = f"""{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="{dataset_root_path}{folder_name}/model" --output_name={folder_name}{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{toml_file1024}" --save_model_as={save_model_as} --learning_rate={lr} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
+        batch_content = f"""{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="{dataset_root_path}{folder_name}/model" --output_name={folder_name}_{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{toml_file1024}" --save_model_as={save_model_as} --learning_rate={lr} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
     else:
         #for i in range(4):
         for i in range(2):
