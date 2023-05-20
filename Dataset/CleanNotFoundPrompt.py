@@ -1,5 +1,6 @@
 import os
 import argparse
+import send2trash
 import shutil
 
 def find_and_move_txt_without_img(folder_path):
@@ -20,7 +21,7 @@ def find_and_move_txt_without_img(folder_path):
                 if not img_found:
                     # Move file to the recycle bin
                     try:
-                        shutil.move(txt_path, os.path.join(os.environ['USERPROFILE'], 'AppData', 'Roaming', 'Microsoft', 'Windows', 'SendTo', file))
+                        send2trash.send2trash(file)
                         print(f'Moved {file} to the recycle bin')
                     except Exception as e:
                         print(f'Failed to move {file} to the recycle bin:', str(e))

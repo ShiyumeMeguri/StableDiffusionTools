@@ -166,9 +166,6 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
     count = 1
     if "FineTune" in training_type:
         batch_content = f"""{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="{dataset_root_path}{folder_name}/model" --output_name={folder_name}{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{toml_file1024}" --save_model_as={save_model_as} --learning_rate={lr} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
-        #学习率动态调整方法有 linear, cosine, cosine_with_restarts, polynomial, constant, constant_with_warmup
-        if training_type == "LoRA" or "LyCORIS":
-            batch_content += f"""--network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" """# --network_train_unet_only
     else:
         for i in range(4):
             if i > 1:
@@ -192,11 +189,12 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
             if training_type == "LoRA" or "LyCORIS":
                 batch_content += f"""--network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" {batch_add_content} 
 """
+            if os.path.isfile(lora_pruneder):
+                batch_content += f"""{lora_pruneder} model/{count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.{save_model_as} model/pruned_{count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.{save_model_as} ALL
+"""
             count += 1
             #--network_train_text_encoder_only
     
-    if os.path.isfile(lora_pruneder):
-        batch_content += f"{lora_pruneder} {count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.{save_model_as}"
     batch_file = f'{dataset_root_path}{folder_name}/{folder_name}{img_dst.name}_{training_type}.bat'
     with open(batch_file, 'w') as f:
         f.write(batch_content)
@@ -233,12 +231,12 @@ def main():
     use_type = "LoRA"
     lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=8, training_type=use_type, customName="_HighDiffuse1024")
     lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=32, training_type=use_type, customName="_HighDiffuse512")
-    create_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type="LoRA", lr=1e-3, train_step=500, network_dim=network_dim, conv_dim=conv_dim)
+    create_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type=use_type, lr=1e-3, train_step=500, network_dim=network_dim, conv_dim=conv_dim)
     
     use_type = "LyCORIS"
     lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=8, training_type=use_type, customName="_HighDiffuse1024")
     lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=32, training_type=use_type, customName="_HighDiffuse512")
-    create_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type="LoRA", lr=1e-3, train_step=500, network_dim=network_dim, conv_dim=conv_dim)
+    create_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type=use_type, lr=1e-3, train_step=500, network_dim=network_dim, conv_dim=conv_dim)
 
 # 解析命令行参数
 parser = argparse.ArgumentParser(description='自动化配置数据集.')
