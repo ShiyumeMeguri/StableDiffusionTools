@@ -126,8 +126,8 @@ batch_size = {batch_size}
     return toml_file
         
 def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_name, num_images, training_type, lr, train_step, network_dim=1, conv_dim=1):
-    if int(train_step) < 100:
-        train_step = 100
+    if int(train_step) < 50:
+        train_step = 50
     if int(num_images) < int(batch_size_lora_low):
         temp_batch_size = int(num_images)
     else:
@@ -251,7 +251,7 @@ def main():
     use_type = "LyCORIS"
     lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=batch_size_lora_high, training_type=use_type, customName="_HighDiffuse1024")
     lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=batch_size_lora_low, training_type=use_type, customName="_HighDiffuse512")
-    create_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type=use_type, lr=1e-3, train_step=math.ceil(int(num_images) / int(batch_size_lora_low)), network_dim=network_dim_lycoris, conv_dim=conv_dim)
+    create_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type=use_type, lr=1e-3, train_step=math.ceil((int(num_images) / int(batch_size_lora_low)) / 2), network_dim=network_dim_lycoris, conv_dim=conv_dim)
 
 # 解析命令行参数
 parser = argparse.ArgumentParser(description='自动化配置数据集.')
