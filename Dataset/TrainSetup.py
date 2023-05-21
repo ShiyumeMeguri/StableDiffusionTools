@@ -134,7 +134,7 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
         temp_batch_size = int(num_images)
     else:
         temp_batch_size = int(batch_size_lora_low)
-    save_every_n_epochs = math.ceil(256 / (num_images * temp_batch_size))
+    save_every_n_epochs = math.ceil((num_images * temp_batch_size / 256))
 
     network_module = None
     temp_train_step = train_step
@@ -190,7 +190,7 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
                     unet_lr = 0.002
                     temp_train_step = int(train_step)
                     temp_batch_size = min(int(num_images), int(batch_size_lora_low))
-                    save_every_n_epochs = math.ceil(128 / (int(num_images) * temp_batch_size))
+                    save_every_n_epochs = math.ceil((int(num_images) * temp_batch_size) / 128)
                 else:
                     break
 
@@ -205,7 +205,7 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
             #    chara_json = process_json_file(json_path, args.chara)
             #    lora_toml_file_chara = create_toml_config(img_dst, chara_json, folder_name, resolution=512, batch_size=batch_size_lora_low, training_type="LoRA", customName="_CharaPrompt")
             #    current_toml_file = lora_toml_file_chara
-            #    save_every_n_epochs = math.ceil(2048 / (int(num_images) * int(temp_batch_size)))
+            #    save_every_n_epochs = math.ceil((int(num_images) * int(temp_batch_size)) / 2048)
             #    batch_add_content = "--network_train_text_encoder_only"
                 
             # 1024训练之后有问题 过拟合模型会逐渐恢复 之后研究

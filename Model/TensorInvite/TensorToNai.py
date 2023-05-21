@@ -3,6 +3,7 @@ import torch
 import argparse
 import numpy as np
 import os
+from typing import Any, Literal
 
 def load_model(path: Path, device: str) -> dict[str, torch.Tensor]:
     if path.suffix == ".safetensors":
@@ -15,8 +16,16 @@ def load_model(path: Path, device: str) -> dict[str, torch.Tensor]:
         ckpt = torch.load(path, map_location=device)
         return ckpt.get("state_dict", ckpt)
 
-def save_model(model, path):
-    torch.save(model, path)
+def save_state_dict(state: dict[str, Any], path: str, format: Literal["ckpt", "safetensors"]) -> None:
+    if format == "ckpt":
+        torch.save(state, Path(path).open('wb'))
+    elif format == "safetensors":
+        try:
+            from safetensors.torch import save_file
+        except ImportError:
+            raise ModuleNotFoundError('In order to use safetensors, run "pip install safetensors"')
+        state = {k: v.contiguous().to_dense() for k, v in state.items()}
+        save_file(state, path)
 
 def main(input: str, inputB: str, output: str):
     input = Path(input)
@@ -37,7 +46,7 @@ def main(input: str, inputB: str, output: str):
                     inputB_model[layer_name] = tensorB * ratio
         else:
             continue
-    save_model(inputB_model, output)
+    save_state_dict(inputB_model, output)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("input", type=str, help="Path to input file. Must be a .safetensors or .ckpt file.")
