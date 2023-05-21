@@ -134,7 +134,7 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
         temp_batch_size = int(num_images)
     else:
         temp_batch_size = int(batch_size_lora_low)
-    save_every_n_epochs = math.ceil(1024 / (num_images * temp_batch_size))
+    save_every_n_epochs = math.ceil(256 / (num_images * temp_batch_size))
 
     network_module = None
     temp_train_step = train_step
@@ -182,28 +182,31 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
     if "FineTune" in training_type:
         batch_content = f"""{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="{dataset_root_path}{folder_name}/model" --output_name={folder_name}_{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{toml_file1024}" --save_model_as={save_model_as} --unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
     else:
-        tranin_count = 3 if args.chara else 2
+        tranin_count = 2 if args.chara else 2
         #for i in range(4):
         for i in range(tranin_count):
             if i > 0:
-                unet_lr = 0.0001
-                temp_train_step = int(train_step) * 3
-                if int(num_images) < int(batch_size_lora_low):
-                    temp_batch_size = num_images
+                if int(num_images) > 500:
+                    unet_lr = 0.002
+                    temp_train_step = int(train_step)
+                    temp_batch_size = min(int(num_images), int(batch_size_lora_low))
+                    save_every_n_epochs = math.ceil(128 / (int(num_images) * temp_batch_size))
                 else:
-                    temp_batch_size = batch_size_lora_low
-                save_every_n_epochs = math.ceil(1024 / (int(num_images) * int(temp_batch_size)))
-            if args.chara and i > 1: 
-                unet_lr = 0.0001
-                temp_train_step = int(train_step) * 10
-                charaPrompt = args.chara
-                if img_dst.name.lower() not in charaPrompt:
-                    charaPrompt += f", {img_dst.name.lower()}"
-                    
-                chara_json = process_json_file(json_path, args.chara)
-                lora_toml_file_chara = create_toml_config(img_dst, chara_json, folder_name, resolution=512, batch_size=batch_size_lora_low, training_type="LoRA", customName="_CharaPrompt")
-                current_toml_file = lora_toml_file_chara
-                batch_add_content = "--network_train_text_encoder_only"
+                    break
+
+            #tag太难练了不搞了
+            #if args.chara and i > 1: 
+            #    unet_lr = 0.0001
+            #    temp_train_step = int(train_step) * 10
+            #    charaPrompt = args.chara
+            #    if img_dst.name.lower() not in charaPrompt:
+            #        charaPrompt += f", {img_dst.name.lower()}"
+            #        
+            #    chara_json = process_json_file(json_path, args.chara)
+            #    lora_toml_file_chara = create_toml_config(img_dst, chara_json, folder_name, resolution=512, batch_size=batch_size_lora_low, training_type="LoRA", customName="_CharaPrompt")
+            #    current_toml_file = lora_toml_file_chara
+            #    save_every_n_epochs = math.ceil(2048 / (int(num_images) * int(temp_batch_size)))
+            #    batch_add_content = "--network_train_text_encoder_only"
                 
             # 1024训练之后有问题 过拟合模型会逐渐恢复 之后研究
             #if count % 2 == 1:
@@ -217,7 +220,7 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
             if training_type == "LoRA" or "LyCORIS":
                 batch_content += f"""--network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" {batch_add_content} 
 """
-            if os.path.isfile(lora_pruneder):
+            if os.path.isfile(lora_pruneder) and not args.chara:
                 batch_content += f"""{lora_pruneder} {dataset_root_path}{folder_name}/model/{count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.{save_model_as} {dataset_root_path}{folder_name}/model/pruned_{count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler} ALL
 """
             count += 1
@@ -258,7 +261,7 @@ def main():
     use_type = "LoRA"
     lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=batch_size_lora_high, training_type=use_type, customName="_HighDiffuse1024")
     lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=batch_size_lora_low, training_type=use_type, customName="_HighDiffuse512")
-    create_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type=use_type, unet_lr=unet_lr_lora, text_encoder_lr=text_encoder_lr_lora, train_step=num_images, network_dim=network_dim_lora, conv_dim=conv_dim)
+    create_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type=use_type, unet_lr=unet_lr_lora, text_encoder_lr=text_encoder_lr_lora, train_step=math.ceil(int(num_images) / int(batch_size_lora_low)), network_dim=network_dim_lora, conv_dim=conv_dim)
     
     use_type = "LyCORIS"
     lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=batch_size_lora_high, training_type=use_type, customName="_HighDiffuse1024")
