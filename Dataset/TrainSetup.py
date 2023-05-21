@@ -128,13 +128,13 @@ batch_size = {batch_size}
     return toml_file
         
 def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_name, num_images, training_type, unet_lr, text_encoder_lr, train_step, network_dim=1, conv_dim=1):
-    if int(train_step) < 200:
-        train_step = 200
+    if int(train_step) < 400:
+        train_step = 400
     if int(num_images) < int(batch_size_lora_low):
         temp_batch_size = int(num_images)
     else:
         temp_batch_size = int(batch_size_lora_low)
-    save_every_n_epochs = math.ceil((num_images * temp_batch_size / 256))
+    save_every_n_epochs = math.ceil(temp_batch_size / (num_images / temp_batch_size))
 
     network_module = None
     temp_train_step = train_step
@@ -179,8 +179,9 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
     batch_add_content = ""
     count = 1
     current_toml_file = toml_file512
+    output_dir = f"{dataset_root_path}{folder_name}/model/{img_dst.name}"
     if "FineTune" in training_type:
-        batch_content = f"""{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="{dataset_root_path}{folder_name}/model" --output_name={folder_name}_{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{toml_file1024}" --save_model_as={save_model_as} --unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
+        batch_content = f"""{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir={output_dir} --output_name={folder_name}_{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{toml_file1024}" --save_model_as={save_model_as} --unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
     else:
         tranin_count = 2 if args.chara else 2
         #for i in range(4):
@@ -190,7 +191,7 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
                     unet_lr = 0.002
                     temp_train_step = int(train_step)
                     temp_batch_size = min(int(num_images), int(batch_size_lora_low))
-                    save_every_n_epochs = math.ceil((int(num_images) * temp_batch_size) / 128)
+                    save_every_n_epochs = math.ceil(temp_batch_size / (num_images / temp_batch_size))
                 else:
                     break
 
@@ -205,7 +206,7 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
             #    chara_json = process_json_file(json_path, args.chara)
             #    lora_toml_file_chara = create_toml_config(img_dst, chara_json, folder_name, resolution=512, batch_size=batch_size_lora_low, training_type="LoRA", customName="_CharaPrompt")
             #    current_toml_file = lora_toml_file_chara
-            #    save_every_n_epochs = math.ceil((int(num_images) * int(temp_batch_size)) / 2048)
+            #    save_every_n_epochs = math.ceil(temp_batch_size / (num_images / temp_batch_size))
             #    batch_add_content = "--network_train_text_encoder_only"
                 
             # 1024训练之后有问题 过拟合模型会逐渐恢复 之后研究
@@ -214,14 +215,14 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
             #else:
             #    current_toml_file = toml_file1024
 
-            batch_content += f"""{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="{dataset_root_path}{folder_name}/model" --output_name={count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{current_toml_file}" --save_model_as={save_model_as} --unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --max_train_steps={temp_train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
+            batch_content += f"""{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir={output_dir} --output_name={count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{current_toml_file}" --save_model_as={save_model_as} --unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --max_train_steps={temp_train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
             if count -1 > 0:
-                batch_content += f"""--network_weights {dataset_root_path}{folder_name}/model/{count-1}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.{save_model_as} """
+                batch_content += f"""--network_weights {output_dir}/{count-1}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.{save_model_as} """
             if training_type == "LoRA" or "LyCORIS":
                 batch_content += f"""--network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" {batch_add_content} 
 """
-            if os.path.isfile(lora_pruneder) and not args.chara:
-                batch_content += f"""{lora_pruneder} {dataset_root_path}{folder_name}/model/{count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.{save_model_as} {dataset_root_path}{folder_name}/model/pruned_{count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler} ALL
+            if os.path.isfile(lora_pruneder) and args.chara:
+                batch_content += f"""{lora_pruneder} {output_dir}/{count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.{save_model_as} {output_dir}/pruned_{count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler} ALL
 """
             count += 1
             #--network_train_text_encoder_only
