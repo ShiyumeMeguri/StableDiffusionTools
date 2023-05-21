@@ -21,7 +21,7 @@ def find_and_move_txt_without_img(folder_path):
                 if not img_found:
                     # Move file to the recycle bin
                     try:
-                        send2trash.send2trash(file)
+                        send2trash.send2trash(txt_path) # Use the full file path
                         print(f'Moved {file} to the recycle bin')
                     except Exception as e:
                         print(f'Failed to move {file} to the recycle bin:', str(e))

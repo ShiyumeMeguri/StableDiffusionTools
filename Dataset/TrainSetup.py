@@ -127,13 +127,13 @@ batch_size = {batch_size}
     return toml_file
         
 def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_name, num_images, training_type, lr, train_step, network_dim=1, conv_dim=1):
-    if int(train_step) < 50:
-        train_step = 50
+    if int(train_step) < 200:
+        train_step = 200
     if int(num_images) < int(batch_size_lora_low):
         temp_batch_size = int(num_images)
     else:
         temp_batch_size = int(batch_size_lora_low)
-    save_every_n_epochs = math.ceil(256 / (num_images * temp_batch_size))
+    save_every_n_epochs = math.ceil(1024 / (num_images * temp_batch_size))
 
     network_module = None
     temp_train_step = train_step
@@ -180,7 +180,7 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
         batch_content = f"""{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="{dataset_root_path}{folder_name}/model" --output_name={folder_name}_{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{toml_file1024}" --save_model_as={save_model_as} --learning_rate={lr} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
     else:
         #for i in range(4):
-        for i in range(2):
+        for i in range(1):
             if i > 1:
                 lr = 0.0001
                 temp_train_step = int(train_step) * 3
@@ -207,7 +207,7 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
                 batch_content += f"""--network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" {batch_add_content} 
 """
             if os.path.isfile(lora_pruneder):
-                batch_content += f"""{lora_pruneder} {dataset_root_path}{folder_name}/model/{count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.{save_model_as} {dataset_root_path}{folder_name}/model/pruned_{count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.{save_model_as} ALL
+                batch_content += f"""{lora_pruneder} {dataset_root_path}{folder_name}/model/{count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.{save_model_as} {dataset_root_path}{folder_name}/model/pruned_{count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler} ALL
 """
             count += 1
             #--network_train_text_encoder_only
