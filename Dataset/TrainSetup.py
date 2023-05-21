@@ -176,12 +176,14 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
     batch_content = ""
     batch_add_content = ""
     count = 1
+    current_toml_file = toml_file512
     if "FineTune" in training_type:
         batch_content = f"""{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="{dataset_root_path}{folder_name}/model" --output_name={folder_name}_{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{toml_file1024}" --save_model_as={save_model_as} --learning_rate={lr} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
     else:
+        tranin_count = 3 if args.chara else 2
         #for i in range(4):
-        for i in range(1):
-            if i > 1:
+        for i in range(tranin_count):
+            if i > 0:
                 lr = 0.0001
                 temp_train_step = int(train_step) * 3
                 if int(num_images) < int(batch_size_lora_low):
@@ -189,16 +191,21 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
                 else:
                     temp_batch_size = batch_size_lora_low
                 save_every_n_epochs = math.ceil(1024 / (int(num_images) * int(temp_batch_size)))
-            if i > 7: #暂时不用
-                lr = 0.0001
-                temp_train_step = int(train_step) * 3
+            if args.chara and i > 1: 
+                lr = 0.001
+                temp_train_step = int(train_step) * 2
+                charaPrompt = args.chara
+                if img_dst.name.lower() not in charaPrompt:
+                    charaPrompt += f", {img_dst.name.lower()}"
+                    
                 process_json_file(json_path, args.chara)
                 batch_add_content = "--network_train_text_encoder_only"
                 
-            if count % 2 == 1:
-                current_toml_file = toml_file512
-            else:
-                current_toml_file = toml_file1024
+            # 1024训练之后有问题 过拟合模型会逐渐恢复 之后研究
+            #if count % 2 == 1:
+            #    current_toml_file = toml_file512
+            #else:
+            #    current_toml_file = toml_file1024
 
             batch_content += f"""{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir="{dataset_root_path}{folder_name}/model" --output_name={count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{current_toml_file}" --save_model_as={save_model_as} --learning_rate={lr} --max_train_steps={temp_train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
             if count -1 > 0:
