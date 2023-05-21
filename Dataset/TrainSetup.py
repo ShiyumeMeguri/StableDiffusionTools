@@ -128,8 +128,8 @@ batch_size = {batch_size}
     return toml_file
         
 def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_name, num_images, training_type, unet_lr, text_encoder_lr, train_step, network_dim=1, conv_dim=1):
-    if int(train_step) < 400:
-        train_step = 400
+    if int(train_step) < 800:
+        train_step = 800
     if int(num_images) < int(batch_size_lora_low):
         temp_batch_size = int(num_images)
     else:
