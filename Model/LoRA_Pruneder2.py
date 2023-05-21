@@ -35,7 +35,7 @@ def load_model(path: Path, device: str) -> dict[str, torch.Tensor]:
         return ckpt.get("state_dict", ckpt)
 
 
-def filter_layers(state_dict: dict[str, torch.Tensor], config_path: str) -> dict[str, torch.Tensor]:
+def filter_layers(state_dict: dict[str, torch.Tensor], state_dict_B: dict[str, torch.Tensor], config_path: str) -> dict[str, torch.Tensor]:
     with open(config_path, "r") as config_file:
         config_dict = {}
         for line in config_file:
@@ -51,8 +51,11 @@ def filter_layers(state_dict: dict[str, torch.Tensor], config_path: str) -> dict
             ratio = config_dict[layer_name]
             if ratio == 0.0:
                 continue
-            filtered_state_dict[layer_name] = weight * math.sqrt(abs(ratio))
-        filtered_state_dict[layer_name] = weight
+            if state_dict_B:
+                filtered_state_dict[layer_name] = state_dict_B[layer_name] * math.sqrt(abs(ratio))
+            else:
+                filtered_state_dict[layer_name] = weight * math.sqrt(abs(ratio))
+        #filtered_state_dict[layer_name] = weight
 
     return filtered_state_dict
 
@@ -72,12 +75,12 @@ def main():
     output_path = Path(output_path)
 
     state_dict_A = load_model(input_path, "cpu")
-
+    
+    state_dict_B = None
     if model_path:
         state_dict_B = load_model(model_path, "cpu")
-        state_dict_A.update(state_dict_B)
 
-    filtered_state_dict = filter_layers(state_dict_A, config_path)
+    filtered_state_dict = filter_layers(state_dict_A, state_dict_B, config_path)
 
     format = output_path.suffix[1:]  # Remove the leading dot
     save_state_dict(filtered_state_dict, output_path, format)  # Save filtered state_dict
