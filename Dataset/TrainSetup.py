@@ -39,10 +39,12 @@ def create_folder_structure(dataset_root_path, dataset_path, folder_name):
     base_path = Path(dataset_root_path)
     target_folder = base_path / folder_name
     img_folder = target_folder / 'img'
+    reg_folder = target_folder / 'reg'
     model_folder = target_folder / 'model'
 
     target_folder.mkdir(exist_ok=True)
     img_folder.mkdir(exist_ok=True)
+    reg_folder.mkdir(exist_ok=True)
     model_folder.mkdir(exist_ok=True)
 
     img_dst = img_folder / dataset_path.name
@@ -106,8 +108,29 @@ def merge_captions(img_dst, json_path, blip_prompt):
         subprocess.run(f'{sd_scripts_path}finetune/clean_captions_and_tags.py {json_path} {json_path}', shell=True)
 
 
-def create_toml_config(img_dst, json_path, folder_name, resolution, batch_size, training_type, customName=""):
-    toml_config = f"""[general]
+def create_toml_config(img_dst, json_path, folder_name, resolution, batch_size, training_type, is_reg, image_dir, class_tokens, customName=""):
+    if is_reg:
+        toml_config = f"""[general]
+enable_bucket = true
+shuffle_caption = true
+keep_tokens = 1
+
+[[datasets]]
+resolution = {resolution}
+batch_size = {batch_size}
+
+  [[datasets.subsets]]
+  image_dir = '{img_dst}'
+  caption_extension = '.txt'
+  
+  [[datasets.subsets]]
+  is_reg = true
+  image_dir = '{image_dir}'
+  class_tokens = '{class_tokens}'
+  num_repeats = 1
+"""
+    else:
+        toml_config = f"""[general]
 enable_bucket = true
 shuffle_caption = true
 keep_tokens = 1
@@ -128,8 +151,8 @@ batch_size = {batch_size}
     return toml_file
         
 def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_name, num_images, training_type, unet_lr, text_encoder_lr, train_step, network_dim=1, conv_dim=1):
-    if int(train_step) < 800:
-        train_step = 800
+    if int(train_step) < 200:
+        train_step = 200
     if int(num_images) < int(batch_size_lora_low):
         temp_batch_size = int(num_images)
     else:
@@ -187,7 +210,7 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
         #for i in range(4):
         for i in range(tranin_count):
             if i > 0:
-                if int(num_images) > 500:
+                if int(num_images) > 1000:
                     unet_lr = 0.002
                     temp_train_step = int(train_step)
                     temp_batch_size = min(int(num_images), int(batch_size_lora_low))
@@ -221,7 +244,7 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
             if training_type == "LoRA" or "LyCORIS":
                 batch_content += f"""--network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" {batch_add_content} 
 """
-            if os.path.isfile(lora_pruneder) and args.chara:
+            if os.path.isfile(lora_pruneder) and not args.chara:
                 batch_content += f"""{lora_pruneder} {output_dir}/{count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.{save_model_as} {output_dir}/pruned_{count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler} ALL
 """
             count += 1
@@ -240,9 +263,9 @@ def main():
     num_images = len([f for f in os.listdir(img_dst) if os.path.isfile(os.path.join(img_dst, f)) and f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))])
 
     blip_prompt = run_scripts(img_dst, num_images, folder_name)
-    has_flipped_images = data_augmentation(img_dst, num_images)
-    if has_flipped_images:
-        num_images *= 2
+    #has_flipped_images = data_augmentation(img_dst, num_images)
+    #if has_flipped_images:
+    #    num_images *= 2
 
     json_path = f'{dataset_root_path}{folder_name}/meta_cap_{img_dst.name}.json'
 
@@ -256,17 +279,17 @@ def main():
     conv_dim = 4
     
     use_type = "FineTune"
-    fine_tune_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=resolution_finetune, batch_size=1, training_type=use_type)
+    fine_tune_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=resolution_finetune, batch_size=1, training_type=use_type, is_reg = args.use_reg, image_dir = args.reg_dir, class_tokens = args.reg_tokens)
     create_batch_file(img_dst, json_path, fine_tune_toml_file, fine_tune_toml_file, folder_name, num_images, training_type=use_type, unet_lr=learning_rate_finetune, text_encoder_lr=learning_rate_finetune, train_step=train_step_finetune)
     
     use_type = "LoRA"
-    lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=batch_size_lora_high, training_type=use_type, customName="_HighDiffuse1024")
-    lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=batch_size_lora_low, training_type=use_type, customName="_HighDiffuse512")
+    lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=batch_size_lora_high, training_type=use_type, is_reg = args.use_reg, image_dir = args.reg_dir, class_tokens = args.reg_tokens, customName="_HighDiffuse1024")
+    lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=batch_size_lora_low, training_type=use_type, is_reg = args.use_reg, image_dir = args.reg_dir, class_tokens = args.reg_tokens, customName="_HighDiffuse512")
     create_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type=use_type, unet_lr=unet_lr_lora, text_encoder_lr=text_encoder_lr_lora, train_step=math.ceil(int(num_images) / int(batch_size_lora_low)), network_dim=network_dim_lora, conv_dim=conv_dim)
     
     use_type = "LyCORIS"
-    lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=batch_size_lora_high, training_type=use_type, customName="_HighDiffuse1024")
-    lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=batch_size_lora_low, training_type=use_type, customName="_HighDiffuse512")
+    lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=batch_size_lora_high, training_type=use_type, is_reg = args.use_reg, image_dir = args.reg_dir, class_tokens = args.reg_tokens, customName="_HighDiffuse1024")
+    lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=batch_size_lora_low, training_type=use_type, is_reg = args.use_reg, image_dir = args.reg_dir, class_tokens = args.reg_tokens, customName="_HighDiffuse512")
     create_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type=use_type, unet_lr=unet_lr_lora, text_encoder_lr=text_encoder_lr_lora, train_step=math.ceil(int(num_images) / int(batch_size_lora_low)), network_dim=network_dim_lycoris, conv_dim=conv_dim)
 
 # 解析命令行参数
@@ -275,6 +298,9 @@ parser.add_argument('path', type=str, help='the folder path to process')
 parser.add_argument('name', type=str, help='folder parent name')
 parser.add_argument('--chara', type=str, help='chara prompt')
 
+parser.add_argument('--use_reg', action='store_true', help='use reg train')
+parser.add_argument('--reg_dir', type=str, default='', help='the folder path to process')
+parser.add_argument('--reg_tokens', type=str, default='', help='chara prompt')
 args = parser.parse_args()
 
 if __name__ == "__main__":
