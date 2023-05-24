@@ -1,6 +1,7 @@
 import argparse
 import configparser
 import glob
+import json
 import os
 import subprocess
 import shutil
@@ -131,7 +132,8 @@ batch_size = {batch_size}
   num_repeats = 1
 """
 
-batch_config = """{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --mixed_precision=fp16 --cache_latents --gradient_checkpointing --save_every_n_epochs={save_every_n_epochs} --lr_scheduler="{lr_scheduler}" """
+batch_config = """
+{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --mixed_precision=fp16 --cache_latents --gradient_checkpointing --save_every_n_epochs={save_every_n_epochs} --lr_scheduler="{lr_scheduler}" """
 
 finetune_batch_config = """--learning_rate={lr} """
 
@@ -190,12 +192,15 @@ def main():
         elif training_type == "FineTune":
             bat_config += finetune_batch_config
             
+        batch_size = globals()[f"{training_type.lower()}_batch_size"]
+        temp_batch_size = int(num_images) if int(num_images) < int(batch_size) else int(batch_size)
+            
         bat_params = {} 
         bat_params["sd_scripts_path"] = sd_scripts_path
         bat_params["train_script"] = train_script
         bat_params["base_model"] = base_model
         bat_params["output_dir"] = f"{base_path}/model/{image_name}"
-        bat_params["output_name"] = f"{folder_name}_{image_name}_{training_type}{lr_scheduler}"
+        bat_params["output_name"] = f"{folder_name}_{image_name}_{training_type}_{lr_scheduler}"
         bat_params["folder_name"] = folder_name
         bat_params["image_name"] = image_name
         bat_params["training_type"] = training_type
@@ -204,16 +209,54 @@ def main():
         bat_params["save_model_as"] = save_model_as
         bat_params["train_step"] = globals()[f"{training_type.lower()}_train_step"]
         bat_params["lr"] = finetune_lr
+        bat_params["save_every_n_epochs"] = math.ceil(temp_batch_size / (num_images / temp_batch_size))
         
+        lora_count = 0
         if training_type == "LoRA" or training_type == "LyCORIS":
-            lora_count = 1
-            bat_params["output_name"] = f"{lora_count}_{folder_name}_{image_name}_{training_type}{lr_scheduler}"
+            bat_params["output_name"] = f"{lora_count}_{folder_name}_{image_name}_{training_type}_{lr_scheduler}"
             bat_params["unet_lr"] = globals()[f"{training_type.lower()}_unet_lr"]
             bat_params["text_encoder_lr"] = globals()[f"{training_type.lower()}_text_encoder_lr"]
             bat_params["prior_loss_weight"] = globals()[f"{training_type.lower()}_prior_loss_weight"]
             bat_params["network_dim"] = globals()[f"{training_type.lower()}_network_dim"]
             bat_params["conv_dim"] = globals()[f"{training_type.lower()}_conv_dim"]
             bat_params["network_module"] = network_module
+            
+        def process_json_file(file_path, tags):
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+
+            tags_array = tags.split(',')
+
+            # 初始化两个新的字典来存放处理后的数据
+            included_data = {}
+            excluded_data = {}
+
+            # 遍历 JSON 文件中的所有节点
+            for key, value in data.items():
+                caption = value["caption"]
+
+                # 检查 caption 是否以数组第一个字符串为开头
+                if caption.startswith(tags_array[0]):
+                    # 如果是，那么查找里面有没有剩余的 tag
+                    remaining_tags = [tag for tag in tags_array[1:] if tag in caption]
+                    if remaining_tags:
+                        included_data[key] = {"caption": ", ".join(remaining_tags)}
+                    
+                    remaining_tags = [tag for tag in caption.split(', ') if tag.strip() not in tags_array]
+                    if remaining_tags:
+                        excluded_data[key] = {"caption": ", ".join(remaining_tags)}
+
+            # 保存匹配的标签到文件
+            included_output_file_path = file_path.replace('.json', '_Included_CharaPrompt.json')
+            with open(included_output_file_path, 'w') as f:
+                json.dump(included_data, f, indent=2)
+
+            # 保存排除的标签到文件
+            excluded_output_file_path = file_path.replace('.json', '_Excluded_CharaPrompt.json')
+            with open(excluded_output_file_path, 'w') as f:
+                json.dump(excluded_data, f, indent=2)
+
+            return included_output_file_path, excluded_output_file_path
         
         batch_size = globals()[f"{training_type.lower()}_batch_size"]
         if int(num_images) < int(batch_size):
@@ -222,6 +265,36 @@ def main():
             temp_batch_size = int(batch_size)
         bat_params["save_every_n_epochs"] = math.ceil(temp_batch_size / (num_images / temp_batch_size))
         
+        #if training_type == "LoRA" or training_type == "LyCORIS":
+        #   charaPrompt = args.chara
+        #   if image_name.lower() not in charaPrompt:
+        #       charaPrompt += f", {image_name.lower()}"
+        #       
+        #   included_chara_json, excluded_chara_json = process_json_file(json_path, args.chara)
+        #   toml_path = f'{base_path}/{folder_name}_{image_name}_{training_type}_Excluded_CharaPrompt.toml'
+        #   lora_count = 1
+        #   bat_config += batch_config
+        #   if training_type == "LoRA" or training_type == "LyCORIS":
+        #       bat_config += lora_batch_config
+        #   elif training_type == "FineTune":
+        #       bat_config += finetune_batch_config
+        #   bat_params["output_name"] = f"{lora_count}_{folder_name}_{image_name}_{training_type}_{lr_scheduler}"
+        #   bat_params["toml_path"] = toml_path
+        #   toml_params["json_path"] = excluded_chara_json
+        #   create_config(toml_path, toml_config, toml_params)
+        #   
+        #   toml_path = f'{base_path}/{folder_name}_{image_name}_{training_type}_Included_CharaPrompt.toml'
+        #   lora_count = 2
+        #   bat_config += batch_config
+        #   if training_type == "LoRA" or training_type == "LyCORIS":
+        #       bat_config += lora_batch_config
+        #   elif training_type == "FineTune":
+        #       bat_config += finetune_batch_config
+        #   bat_params["output_name"] = f"{lora_count}_{folder_name}_{image_name}_{training_type}_{lr_scheduler}"
+        #   bat_params["toml_path"] = toml_path
+        #   toml_params["json_path"] = included_chara_json
+        #   create_config(toml_path, toml_config, toml_params)
+                
         create_config(batch_path, bat_config, bat_params)
         
     
