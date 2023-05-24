@@ -171,35 +171,46 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
     elif training_type == "FineTune":
         train_script = "fine_tune"
         
-    
     def process_json_file(file_path, tags):
         with open(file_path, 'r') as f:
-                data = json.load(f)
-        
+            data = json.load(f)
+
         tags_array = tags.split(',')
-        
-        # 初始化一个新的字典来存放处理后的数据
-        new_data = {}
-        
-        # 遍历json文件中的所有节点
+
+        # 初始化两个新的字典来存放处理后的数据
+        included_data = {}
+        excluded_data = {}
+
+        # 遍历 JSON 文件中的所有节点
         for key, value in data.items():
-            # 检查caption是否以数组第一个字符串为开头
-            if value["caption"].startswith(tags_array[0]):
-                # 如果是，那么查找里面有没有剩余的tag
-                remaining_tags = [tags_array[0]] + [tag for tag in tags_array[1:] if tag in value["caption"]]
-                
-                # 如果有，就只保留这些tag，其他的tag全部删除
+            caption = value["caption"]
+
+            # 检查 caption 是否以数组第一个字符串为开头
+            if caption.startswith(tags_array[0]):
+                # 如果是，那么查找里面有没有剩余的 tag
+                remaining_tags = [tag for tag in tags_array[1:] if tag in caption]
                 if remaining_tags:
-                    new_data[key] = {"caption": ", ".join(remaining_tags)}
-            
-        output_file_path = file_path.replace('.json', '_CharaPrompt.json')
-        with open(output_file_path, 'w') as f:
-            json.dump(new_data, f, indent=2)
-        return output_file_path
+                    included_data[key] = {"caption": ", ".join(remaining_tags)}
+                
+                remaining_tags = [tag for tag in caption.split(', ') if tag.strip() not in tags_array]
+                if remaining_tags:
+                    excluded_data[key] = {"caption": ", ".join(remaining_tags)}
+
+        # 保存匹配的标签到文件
+        included_output_file_path = file_path.replace('.json', '_Included_CharaPrompt.json')
+        with open(included_output_file_path, 'w') as f:
+            json.dump(included_data, f, indent=2)
+
+        # 保存排除的标签到文件
+        excluded_output_file_path = file_path.replace('.json', '_Excluded_CharaPrompt.json')
+        with open(excluded_output_file_path, 'w') as f:
+            json.dump(excluded_data, f, indent=2)
+
+        return included_output_file_path, excluded_output_file_path
 
     
     batch_content = ""
-    batch_add_content = ""
+    batch_add_content = "--network_train_text_encoder_only"
     count = 1
     current_toml_file = toml_file512
     output_dir = f"{dataset_root_path}{folder_name}/model/{img_dst.name}"
@@ -218,19 +229,16 @@ def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_na
                 else:
                     break
 
-            #tag太难练了不搞了
-            #if args.chara and i > 1: 
-            #    unet_lr = 0.0001
-            #    temp_train_step = int(train_step) * 10
-            #    charaPrompt = args.chara
-            #    if img_dst.name.lower() not in charaPrompt:
-            #        charaPrompt += f", {img_dst.name.lower()}"
-            #        
-            #    chara_json = process_json_file(json_path, args.chara)
-            #    lora_toml_file_chara = create_toml_config(img_dst, chara_json, folder_name, resolution=512, batch_size=batch_size_lora_low, training_type="LoRA", customName="_CharaPrompt")
-            #    current_toml_file = lora_toml_file_chara
-            #    save_every_n_epochs = math.ceil(temp_batch_size / (num_images / temp_batch_size))
-            #    batch_add_content = "--network_train_text_encoder_only"
+            if args.chara and i == 0: 
+                charaPrompt = args.chara
+                if img_dst.name.lower() not in charaPrompt:
+                    charaPrompt += f", {img_dst.name.lower()}"
+                    
+                included_chara_json, excluded_chara_json = process_json_file(json_path, args.chara)
+                included_lora_toml_file_chara = create_toml_config(img_dst, included_chara_json, folder_name, resolution=512, batch_size=batch_size_lora_low, training_type="LoRA", customName="Included_CharaPrompt")
+                excluded_lora_toml_file_chara = create_toml_config(img_dst, excluded_chara_json, folder_name, resolution=512, batch_size=batch_size_lora_low, training_type="LoRA", customName="Excluded_CharaPrompt")
+                current_toml_file = included_lora_toml_file_chara
+                save_every_n_epochs = math.ceil(temp_batch_size / (num_images / temp_batch_size))
                 
             # 1024训练之后有问题 过拟合模型会逐渐恢复 之后研究
             #if count % 2 == 1:
