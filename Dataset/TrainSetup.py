@@ -1,116 +1,103 @@
-import codecs
 import argparse
-import os
-import shutil
-import glob
-import json
-import math
-from pathlib import Path
-from PIL import Image
-import subprocess
 import configparser
+import glob
+import os
+import subprocess
+import shutil
+import math
+from PIL import Image
+from pathlib import Path
 
 config = configparser.ConfigParser()
 config.read('TrainSetupConfig.ini')
 
-
-base_model = config.get('DEFAULT', 'model_path')
-lora_pruneder = config.get('DEFAULT', 'lora_pruneder')
-sd_scripts_path = config.get('DEFAULT', 'sd_scripts_path')
-dataset_root_path = config.get('DEFAULT', 'dataset_root_path')
-lr_scheduler = config.get('DEFAULT', 'lr_scheduler')
-learning_rate_finetune = config.get('DEFAULT', 'learning_rate_finetune')
-train_step_finetune = config.get('DEFAULT', 'train_step_finetune')
-unet_lr_lora = config.get('DEFAULT', 'unet_lr_lora')
-text_encoder_lr_lora = config.get('DEFAULT', 'text_encoder_lr_lora')
-resolution_finetune = config.get('DEFAULT', 'resolution_finetune')
-batch_size_lora_high = config.get('DEFAULT', 'batch_size_lora_high')
-batch_size_lora_low = config.get('DEFAULT', 'batch_size_lora_low')
-network_dim_lora = config.get('DEFAULT', 'network_dim_lora')
-network_dim_lycoris = config.get('DEFAULT', 'network_dim_lycoris')
-resolution_lora_low = config.get('DEFAULT', 'resolution_lora_low')
-resolution_lora_high = config.get('DEFAULT', 'resolution_lora_high')
-save_model_as = config.get('DEFAULT', 'save_model_as')
-use_blip = config.getboolean('DEFAULT', 'use_blip')
-#缓存潜在空间
-#python prepare_buckets_latents.py --full_path D:\DataSet\BlueArchiveAnime\img\Style D:\DataSet\BlueArchiveAnime\meta_cap_Style.json D:\DataSet\BlueArchiveAnime\meta_cap_Style_prepare_buckets_latents.json D:/stable-diffusion-webui/models/_TempModel/NovelAI/animefull-latest.ckpt --batch_size 4 --max_resolution 512 --mixed_precision fp16
+base_model						=	config.get('DEFAULT', 'base_model')
+dataset_root_path				=	config.get('DEFAULT', 'dataset_root_path')
+save_model_as					=	config.get('DEFAULT', 'save_model_as')
+lr_scheduler					=	config.get('DEFAULT', 'lr_scheduler')
+	
+lora_pruneder					=	config.get('DEFAULT', 'lora_pruneder')
+sd_scripts_path					=	config.get('DEFAULT', 'sd_scripts_path')
+	
+finetune_lr						=	config.get('DEFAULT', 'finetune_lr')
+finetune_batch_size				=	config.get('DEFAULT', 'finetune_batch_size')
+finetune_train_step				=	config.get('DEFAULT', 'finetune_train_step')
+finetune_resolution				=	config.get('DEFAULT', 'finetune_resolution')
+	
+lora_unet_lr					=	config.get('DEFAULT', 'lora_unet_lr')
+lora_text_encoder_lr			=	config.get('DEFAULT', 'lora_text_encoder_lr')
+lora_prior_loss_weight			=	config.get('DEFAULT', 'lora_prior_loss_weight')
+lora_batch_size					=	config.get('DEFAULT', 'lora_batch_size')
+lora_train_step					=	config.get('DEFAULT', 'lora_train_step')
+lora_network_dim				=	config.get('DEFAULT', 'lora_network_dim')
+lora_conv_dim					=	config.get('DEFAULT', 'lora_conv_dim')
+lora_resolution					=	config.get('DEFAULT', 'lora_resolution')
+lora__text_encoder_lr					=	config.get('DEFAULT', 'lora_resolution')
+	
+lycoris_unet_lr					=	config.get('DEFAULT', 'lycoris_unet_lr')
+lycoris_text_encoder_lr			=	config.get('DEFAULT', 'lycoris_text_encoder_lr')
+lycoris_prior_loss_weight		=	config.get('DEFAULT', 'lycoris_prior_loss_weight')
+lycoris_batch_size				=	config.get('DEFAULT', 'lycoris_batch_size')
+lycoris_train_step				=	config.get('DEFAULT', 'lycoris_train_step')
+lycoris_network_dim				=	config.get('DEFAULT', 'lycoris_network_dim')
+lycoris_conv_dim				=	config.get('DEFAULT', 'lycoris_conv_dim')
+lycoris_resolution				=	config.get('DEFAULT', 'lycoris_resolution')
+lycoris_resolution				=	config.get('DEFAULT', 'lycoris_resolution')
 
 def create_folder_structure(dataset_root_path, dataset_path, folder_name):
-    base_path = Path(dataset_root_path)
-    target_folder = base_path / folder_name
-    img_folder = target_folder / 'img'
-    reg_folder = target_folder / 'reg'
-    model_folder = target_folder / 'model'
+    target_folder = Path(dataset_root_path) / folder_name
 
-    target_folder.mkdir(exist_ok=True)
-    img_folder.mkdir(exist_ok=True)
-    reg_folder.mkdir(exist_ok=True)
-    model_folder.mkdir(exist_ok=True)
+    for folder in ['img', 'reg', 'model']:
+        (target_folder / folder).mkdir(exist_ok=True)
 
-    img_dst = img_folder / dataset_path.name
-    shutil.move(str(dataset_path), str(img_dst))
+    image_path = target_folder / 'img' / dataset_path.name
+    shutil.move(str(dataset_path), str(image_path))
 
-    return img_dst
+    return image_path
+  
+def flip_images(image_path):
+    for file in os.listdir(image_path):
+        if file.lower().endswith((".jpg", ".png", ".bmp")):
+            flipped_img = Image.open(os.path.join(image_path, file)).convert("RGB").transpose(Image.FLIP_LEFT_RIGHT)
+            flipped_img.save(os.path.join(image_path, os.path.splitext(file)[0] + "_flip.png"))
 
-def run_scripts(img_dst, num_images, folder_name):
-    img_dst_str = str(img_dst)
-
-    blip_prompt = False
-    txt_files = glob.glob(os.path.join(img_dst_str, '*.txt'))
+            txt_file = os.path.splitext(file)[0] + ".txt"
+            txt_path = os.path.join(image_path, txt_file)
+            if os.path.isfile(txt_path):
+                flipped_txt_path = os.path.join(image_path, os.path.splitext(file)[0] + "_flip.txt")
+                with open(txt_path, "r") as f_in, open(flipped_txt_path, "w") as f_out:
+                    f_out.write(f_in.read())
+    print("翻转图片完成.")  
+    
+def run_scripts(image_path, folder_name):
+    txt_files = glob.glob(os.path.join(image_path, '*.txt'))
+    
     if not txt_files:
         print('找不到txt文件, 使用AI生成prompt')
-        if (use_blip):
-            blip_prompt = True
-            subprocess.run(f'{sd_scripts_path}finetune/make_captions.py --caption_extention .txt "{img_dst_str}"', shell=True)
-        else:
-            subprocess.run(f'{sd_scripts_path}finetune/tag_images_by_wd14_tagger.py "{img_dst_str}"', shell=True)
-
+        subprocess.run(f'{sd_scripts_path}finetune/tag_images_by_wd14_tagger.py "{image_path}"', shell=True)
     else:
         print('找到txt文件, 跳过 tag_images_by_wd14_tagger.py')
 
-    return blip_prompt
-    
-def flip_images(img_dst):
-    for file in os.listdir(img_dst):
-        if file.endswith(".jpg") or file.endswith(".png") or file.endswith(".bmp"):
-            img = Image.open(os.path.join(img_dst, file)).convert("RGB")
-            flipped_img = img.transpose(Image.FLIP_LEFT_RIGHT)
-            flipped_img.save(os.path.join(img_dst, os.path.splitext(file)[0] + "_flip.jpg"), quality=90)
-
-            # 查找同名的文本文件
-            txt_file = os.path.splitext(file)[0] + ".txt"
-            txt_path = os.path.join(img_dst, txt_file)
-            if os.path.isfile(txt_path):
-                # 如果存在同名的文本文件，则复制一份到翻转后的图片的同一目录下
-                flipped_txt_path = os.path.join(img_dst, os.path.splitext(file)[0] + "_flip.txt")
-                with open(txt_path, "r") as f_in, open(flipped_txt_path, "w") as f_out:
-                    f_out.write(f_in.read())
-    print("翻转图片完成.")
-    
-def data_augmentation(img_dst, num_images):
-    has_flipped_images = any('_flip' in f for f in os.listdir(img_dst))
-    if num_images < 1000 and not has_flipped_images:
-        print(f'图片少于1000,总数量: "{num_images}" 开启数据增强')
-        flip_images(img_dst)
-        return True
-    elif has_flipped_images:
+def data_augmentation(image_path, num_images):
+    has_flipped_images = any('_flip' in f for f in os.listdir(image_path))
+    if has_flipped_images:
         print('文件夹已包含_flipped结尾的图片，跳过数据增强')
     else:
-        print(f'图片数量为 "{num_images}"，不需要进行数据增强')
-
+        flip_images(image_path)
+        return True
     return False
+    
+def merge_captions(image_path, json_path):
+    # 检查文件是否存在，如果存在则删除
+    if os.path.exists(json_path):
+        os.remove(json_path)
+    subprocess.run(f'{sd_scripts_path}finetune/merge_captions_to_metadata.py --caption_extension=.txt --full_path "{image_path}" {json_path}', shell=True)
 
-def merge_captions(img_dst, json_path, blip_prompt):
-    subprocess.run(f'{sd_scripts_path}finetune/merge_captions_to_metadata.py --caption_extension=.txt --full_path "{img_dst}" {json_path}', shell=True)
+def create_config(path, data, params):
+    with open(path, 'w') as f:
+        f.write(data.format_map(params))
 
-    if (blip_prompt):
-        print('清理错误Prompt中')
-        subprocess.run(f'{sd_scripts_path}finetune/clean_captions_and_tags.py {json_path} {json_path}', shell=True)
-
-
-def create_toml_config(img_dst, json_path, folder_name, resolution, batch_size, training_type, is_reg, image_dir, class_tokens, customName=""):
-    if is_reg:
-        toml_config = f"""[general]
+finetune_toml_config = """[general]
 enable_bucket = true
 shuffle_caption = true
 keep_tokens = 1
@@ -120,192 +107,130 @@ resolution = {resolution}
 batch_size = {batch_size}
 
   [[datasets.subsets]]
-  image_dir = '{img_dst}'
+  image_dir = '{image_path}'
+  metadata_file = '{json_path}'
+"""
+
+dreambooth_toml_config = """[general]
+enable_bucket = true
+shuffle_caption = true
+keep_tokens = 1
+
+[[datasets]]
+resolution = {resolution}
+batch_size = {batch_size}
+
+  [[datasets.subsets]]
+  image_dir = '{image_path}'
   caption_extension = '.txt'
   
   [[datasets.subsets]]
   is_reg = true
-  image_dir = '{image_dir}'
+  image_dir = '{reg_path}'
   class_tokens = '{class_tokens}'
   num_repeats = 1
 """
-    else:
-        toml_config = f"""[general]
-enable_bucket = true
-shuffle_caption = true
-keep_tokens = 1
 
-[[datasets]]
-resolution = {resolution}
-batch_size = {batch_size}
+batch_config = """{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --mixed_precision=fp16 --cache_latents --gradient_checkpointing --save_every_n_epochs={save_every_n_epochs} --lr_scheduler="{lr_scheduler}" """
 
-  [[datasets.subsets]]
-  image_dir = '{img_dst}'
-  metadata_file = '{json_path}'
-"""
+finetune_batch_config = """--learning_rate={lr} """
 
-    toml_file = f'{dataset_root_path}{folder_name}/{folder_name}_{img_dst.name}_{training_type}{customName}.toml'
-    with open(toml_file, 'w') as f:
-        f.write(toml_config)
-
-    return toml_file
-        
-def create_batch_file(img_dst, json_path, toml_file1024, toml_file512, folder_name, num_images, training_type, unet_lr, text_encoder_lr, train_step, network_dim=1, conv_dim=1):
-    if int(train_step) < 200:
-        train_step = 200
-    if int(num_images) < int(batch_size_lora_low):
-        temp_batch_size = int(num_images)
-    else:
-        temp_batch_size = int(batch_size_lora_low)
-    save_every_n_epochs = math.ceil(temp_batch_size / (num_images / temp_batch_size))
-
-    network_module = None
-    temp_train_step = train_step
-    
-    if training_type == "LoRA":
-        train_script = "train_network"
-        network_module = "networks.lora"
-    elif training_type == "LyCORIS":
-        train_script = "train_network"
-        network_module = "lycoris.kohya"
-    elif training_type == "FineTune":
-        train_script = "fine_tune"
-        
-    def process_json_file(file_path, tags):
-        with open(file_path, 'r') as f:
-            data = json.load(f)
-
-        tags_array = tags.split(',')
-
-        # 初始化两个新的字典来存放处理后的数据
-        included_data = {}
-        excluded_data = {}
-
-        # 遍历 JSON 文件中的所有节点
-        for key, value in data.items():
-            caption = value["caption"]
-
-            # 检查 caption 是否以数组第一个字符串为开头
-            if caption.startswith(tags_array[0]):
-                # 如果是，那么查找里面有没有剩余的 tag
-                remaining_tags = [tag for tag in tags_array[1:] if tag in caption]
-                if remaining_tags:
-                    included_data[key] = {"caption": ", ".join(remaining_tags)}
-                
-                remaining_tags = [tag for tag in caption.split(', ') if tag.strip() not in tags_array]
-                if remaining_tags:
-                    excluded_data[key] = {"caption": ", ".join(remaining_tags)}
-
-        # 保存匹配的标签到文件
-        included_output_file_path = file_path.replace('.json', '_Included_CharaPrompt.json')
-        with open(included_output_file_path, 'w') as f:
-            json.dump(included_data, f, indent=2)
-
-        # 保存排除的标签到文件
-        excluded_output_file_path = file_path.replace('.json', '_Excluded_CharaPrompt.json')
-        with open(excluded_output_file_path, 'w') as f:
-            json.dump(excluded_data, f, indent=2)
-
-        return included_output_file_path, excluded_output_file_path
-
-    
-    batch_content = ""
-    batch_add_content = "--network_train_text_encoder_only"
-    count = 1
-    current_toml_file = toml_file512
-    output_dir = f"{dataset_root_path}{folder_name}/model/{img_dst.name}"
-    if "FineTune" in training_type:
-        batch_content = f"""{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir={output_dir} --output_name={folder_name}_{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{toml_file1024}" --save_model_as={save_model_as} --unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
-    else:
-        tranin_count = 2 if args.chara else 2
-        #for i in range(4):
-        for i in range(tranin_count):
-            if i > 0:
-                if int(num_images) > 1000:
-                    unet_lr = 0.002
-                    temp_train_step = int(train_step)
-                    temp_batch_size = min(int(num_images), int(batch_size_lora_low))
-                    save_every_n_epochs = math.ceil(temp_batch_size / (num_images / temp_batch_size))
-                else:
-                    break
-
-            if args.chara and i == 0: 
-                charaPrompt = args.chara
-                if img_dst.name.lower() not in charaPrompt:
-                    charaPrompt += f", {img_dst.name.lower()}"
-                    
-                included_chara_json, excluded_chara_json = process_json_file(json_path, args.chara)
-                included_lora_toml_file_chara = create_toml_config(img_dst, included_chara_json, folder_name, resolution=512, batch_size=batch_size_lora_low, training_type="LoRA", customName="Included_CharaPrompt")
-                excluded_lora_toml_file_chara = create_toml_config(img_dst, excluded_chara_json, folder_name, resolution=512, batch_size=batch_size_lora_low, training_type="LoRA", customName="Excluded_CharaPrompt")
-                current_toml_file = included_lora_toml_file_chara
-                save_every_n_epochs = math.ceil(temp_batch_size / (num_images / temp_batch_size))
-                
-            # 1024训练之后有问题 过拟合模型会逐渐恢复 之后研究
-            #if count % 2 == 1:
-            #    current_toml_file = toml_file512
-            #else:
-            #    current_toml_file = toml_file1024
-
-            batch_content += f"""{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --output_dir={output_dir} --output_name={count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler} --dataset_config="{current_toml_file}" --save_model_as={save_model_as} --unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --max_train_steps={temp_train_step} --optimizer_type AdamW8bit --xformers --gradient_checkpointing --mixed_precision=fp16 --save_every_n_epochs={save_every_n_epochs} --clip_skip=2 --cache_latents --lr_scheduler="{lr_scheduler}" """
-            if count -1 > 0:
-                batch_content += f"""--network_weights {output_dir}/{count-1}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.{save_model_as} """
-            if training_type == "LoRA" or "LyCORIS":
-                batch_content += f"""--network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" {batch_add_content} 
-"""
-            if os.path.isfile(lora_pruneder) and not args.chara:
-                batch_content += f"""{lora_pruneder} {output_dir}/{count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler}.{save_model_as} {output_dir}/pruned_{count}_{folder_name}_{img_dst.name}_{training_type}{lr_scheduler} ALL
-"""
-            count += 1
-            #--network_train_text_encoder_only
-    
-    batch_file = f'{dataset_root_path}{folder_name}/{folder_name}_{img_dst.name}_{training_type}.bat'
-    with codecs.open(batch_file, 'w', encoding='utf-8') as f:
-        f.write(batch_content)
+lora_batch_config = """--unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" --network_train_unet_only --persistent_data_loader_workers --prior_loss_weight={prior_loss_weight} """
 
 def main():
-    dataset_path = args.path
+    dataset_path = Path(args.path)
     folder_name = args.name
+    base_path = f'{dataset_root_path}{folder_name}'
     
-    dataset_path = Path(dataset_path)
-    img_dst = create_folder_structure(dataset_root_path, dataset_path, folder_name)
-    num_images = len([f for f in os.listdir(img_dst) if os.path.isfile(os.path.join(img_dst, f)) and f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))])
-
-    blip_prompt = run_scripts(img_dst, num_images, folder_name)
-    #has_flipped_images = data_augmentation(img_dst, num_images)
-    #if has_flipped_images:
-    #    num_images *= 2
-
-    json_path = f'{dataset_root_path}{folder_name}/meta_cap_{img_dst.name}.json'
-
-    # 检查文件是否存在，如果存在则删除
-    if os.path.exists(json_path):
-        os.remove(json_path)
-
+    image_path = create_folder_structure(dataset_root_path, dataset_path, folder_name) # 创建文件夹构造
+    num_images = len([f for f in os.listdir(image_path) if os.path.isfile(os.path.join(image_path, f)) and f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))])
+    
+    run_scripts(image_path, folder_name)
+    
+    if not args.chara:
+        flipped_images = data_augmentation(image_path, num_images)
+        if flipped_images:
+            num_images *= 2
+    
+    image_name = image_path.name
+    # tag合并
+    json_path = f'{base_path}/meta_cap_{image_name}.json'
     # 合并提示
-    merge_captions(img_dst, json_path, blip_prompt)
+    merge_captions(image_path, json_path)
+    
+    training_types = ["FineTune", "LoRA", "LyCORIS"]
 
-    conv_dim = 4
-    
-    use_type = "FineTune"
-    fine_tune_toml_file = create_toml_config(img_dst, json_path, folder_name, resolution=resolution_finetune, batch_size=1, training_type=use_type, is_reg = args.use_reg, image_dir = args.reg_dir, class_tokens = args.reg_tokens)
-    create_batch_file(img_dst, json_path, fine_tune_toml_file, fine_tune_toml_file, folder_name, num_images, training_type=use_type, unet_lr=learning_rate_finetune, text_encoder_lr=learning_rate_finetune, train_step=train_step_finetune)
-    
-    use_type = "LoRA"
-    lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=batch_size_lora_high, training_type=use_type, is_reg = args.use_reg, image_dir = args.reg_dir, class_tokens = args.reg_tokens, customName="_HighDiffuse1024")
-    lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=batch_size_lora_low, training_type=use_type, is_reg = args.use_reg, image_dir = args.reg_dir, class_tokens = args.reg_tokens, customName="_HighDiffuse512")
-    create_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type=use_type, unet_lr=unet_lr_lora, text_encoder_lr=text_encoder_lr_lora, train_step=math.ceil(int(num_images) / int(batch_size_lora_low)), network_dim=network_dim_lora, conv_dim=conv_dim)
-    
-    use_type = "LyCORIS"
-    lora_toml_file1024 = create_toml_config(img_dst, json_path, folder_name, resolution=1024, batch_size=batch_size_lora_high, training_type=use_type, is_reg = args.use_reg, image_dir = args.reg_dir, class_tokens = args.reg_tokens, customName="_HighDiffuse1024")
-    lora_toml_file512 = create_toml_config(img_dst, json_path, folder_name, resolution=512, batch_size=batch_size_lora_low, training_type=use_type, is_reg = args.use_reg, image_dir = args.reg_dir, class_tokens = args.reg_tokens, customName="_HighDiffuse512")
-    create_batch_file(img_dst, json_path, lora_toml_file1024, lora_toml_file512, folder_name, num_images, training_type=use_type, unet_lr=unet_lr_lora, text_encoder_lr=text_encoder_lr_lora, train_step=math.ceil(int(num_images) / int(batch_size_lora_low)), network_dim=network_dim_lycoris, conv_dim=conv_dim)
+    for training_type in training_types:
+        toml_path = f'{base_path}/{folder_name}_{image_name}_{training_type}.toml'
+        toml_config = dreambooth_toml_config if args.use_reg else finetune_toml_config
+        
+        toml_params = {} 
+        toml_params["resolution"] = globals()[f"{training_type.lower()}_resolution"]
+        toml_params["batch_size"] = globals()[f"{training_type.lower()}_batch_size"]
+        toml_params["image_path"] = image_path
+        toml_params["json_path"] = json_path
+        toml_params["reg_path"] = args.reg_dir
+        toml_params["class_tokens"] = args.reg_tokens
+        
+        create_config(toml_path, toml_config, toml_params)
+        
+        if training_type == "LoRA":
+            train_script = "train_network"
+            network_module = "networks.lora"
+        elif training_type == "LyCORIS":
+            train_script = "train_network"
+            network_module = "lycoris.kohya"
+        elif training_type == "FineTune":
+            train_script = "fine_tune"
 
+        batch_path = f'{base_path}/{folder_name}_{image_name}_{training_type}.bat'
+        bat_config = batch_config
+        if training_type == "LoRA" or training_type == "LyCORIS":
+            bat_config += lora_batch_config
+        elif training_type == "FineTune":
+            bat_config += finetune_batch_config
+            
+        bat_params = {} 
+        bat_params["sd_scripts_path"] = sd_scripts_path
+        bat_params["train_script"] = train_script
+        bat_params["base_model"] = base_model
+        bat_params["output_dir"] = f"{base_path}/model/{image_name}"
+        bat_params["output_name"] = f"{folder_name}_{image_name}_{training_type}{lr_scheduler}"
+        bat_params["folder_name"] = folder_name
+        bat_params["image_name"] = image_name
+        bat_params["training_type"] = training_type
+        bat_params["lr_scheduler"] = lr_scheduler
+        bat_params["toml_path"] = toml_path
+        bat_params["save_model_as"] = save_model_as
+        bat_params["train_step"] = globals()[f"{training_type.lower()}_train_step"]
+        bat_params["lr"] = finetune_lr
+        
+        if training_type == "LoRA" or training_type == "LyCORIS":
+            lora_count = 1
+            bat_params["output_name"] = f"{lora_count}_{folder_name}_{image_name}_{training_type}{lr_scheduler}"
+            bat_params["unet_lr"] = globals()[f"{training_type.lower()}_unet_lr"]
+            bat_params["text_encoder_lr"] = globals()[f"{training_type.lower()}_text_encoder_lr"]
+            bat_params["prior_loss_weight"] = globals()[f"{training_type.lower()}_prior_loss_weight"]
+            bat_params["network_dim"] = globals()[f"{training_type.lower()}_network_dim"]
+            bat_params["conv_dim"] = globals()[f"{training_type.lower()}_conv_dim"]
+            bat_params["network_module"] = network_module
+        
+        batch_size = globals()[f"{training_type.lower()}_batch_size"]
+        if int(num_images) < int(batch_size):
+            temp_batch_size = int(num_images)
+        else:
+            temp_batch_size = int(batch_size)
+        bat_params["save_every_n_epochs"] = math.ceil(temp_batch_size / (num_images / temp_batch_size))
+        
+        create_config(batch_path, bat_config, bat_params)
+        
+    
 # 解析命令行参数
 parser = argparse.ArgumentParser(description='自动化配置数据集.')
 parser.add_argument('path', type=str, help='the folder path to process')
 parser.add_argument('name', type=str, help='folder parent name')
-parser.add_argument('--chara', type=str, help='chara prompt')
 
+parser.add_argument('--chara', type=str, default='', help='chara prompt')
 parser.add_argument('--use_reg', action='store_true', help='use reg train')
 parser.add_argument('--reg_dir', type=str, default='', help='the folder path to process')
 parser.add_argument('--reg_tokens', type=str, default='', help='chara prompt')
