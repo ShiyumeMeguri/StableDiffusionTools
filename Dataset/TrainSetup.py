@@ -58,19 +58,22 @@ def create_folder_structure(dataset_root_path, dataset_path, folder_name):
   
 def flip_images(image_path):
     for file in os.listdir(image_path):
-        if file.lower().endswith((".jpg", ".png", ".bmp")):
-            flipped_img = Image.open(os.path.join(image_path, file)).convert("RGB").transpose(Image.FLIP_LEFT_RIGHT)
-            flipped_img.save(os.path.join(image_path, os.path.splitext(file)[0] + "_flip.png"))
+        if file.endswith(".jpg") or file.endswith(".png") or file.endswith(".bmp"):
+            img = Image.open(os.path.join(image_path, file)).convert("RGB")
+            flipped_img = img.transpose(Image.FLIP_LEFT_RIGHT)
+            flipped_img.save(os.path.join(image_path, os.path.splitext(file)[0] + "_flip.jpg"), quality=90)
 
+            # 查找同名的文本文件
             txt_file = os.path.splitext(file)[0] + ".txt"
             txt_path = os.path.join(image_path, txt_file)
             if os.path.isfile(txt_path):
+                # 如果存在同名的文本文件，则复制一份到翻转后的图片的同一目录下
                 flipped_txt_path = os.path.join(image_path, os.path.splitext(file)[0] + "_flip.txt")
                 with open(txt_path, "r") as f_in, open(flipped_txt_path, "w") as f_out:
                     f_out.write(f_in.read())
-    print("翻转图片完成.")  
+    print("翻转图片完成.")
     
-def run_scripts(image_path, folder_name):
+def run_scripts(image_path):
     txt_files = glob.glob(os.path.join(image_path, '*.txt'))
     
     if not txt_files:
@@ -79,7 +82,7 @@ def run_scripts(image_path, folder_name):
     else:
         print('找到txt文件, 跳过 tag_images_by_wd14_tagger.py')
 
-def data_augmentation(image_path, num_images):
+def data_augmentation(image_path):
     has_flipped_images = any('_flip' in f for f in os.listdir(image_path))
     if has_flipped_images:
         print('文件夹已包含_flipped结尾的图片，跳过数据增强')
@@ -92,6 +95,7 @@ def merge_captions(image_path, json_path):
     # 检查文件是否存在，如果存在则删除
     if os.path.exists(json_path):
         os.remove(json_path)
+        
     subprocess.run(f'{sd_scripts_path}finetune/merge_captions_to_metadata.py --caption_extension=.txt --full_path "{image_path}" {json_path}', shell=True)
 
 def create_config(path, data, params):
@@ -147,10 +151,10 @@ def main():
     image_path = create_folder_structure(dataset_root_path, dataset_path, folder_name) # 创建文件夹构造
     num_images = len([f for f in os.listdir(image_path) if os.path.isfile(os.path.join(image_path, f)) and f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))])
     
-    run_scripts(image_path, folder_name)
+    run_scripts(image_path)
     
     if not args.chara:
-        flipped_images = data_augmentation(image_path, num_images)
+        flipped_images = data_augmentation(image_path)
         if flipped_images:
             num_images *= 2
     
