@@ -223,8 +223,6 @@ def main():
         batch_path = f'{base_train_path}.bat'
         
         batch_size = globals()[f"{training_type.lower()}_batch_size"]
-        #批次低于图片时会等于图片数量所以创建新的临时批次变量
-        temp_batch_size = int(num_images) if int(num_images) < int(batch_size) else int(batch_size)
             
         bat_config = base_batch_config
         if training_type == "LoRA":
@@ -256,7 +254,7 @@ def main():
         bat_params["save_model_as"] = save_model_as
         bat_params["train_step"] = globals()[f"{training_type.lower()}_train_step"] * int(num_images / 500) if num_images > 500 else globals()[f"{training_type.lower()}_train_step"]
         bat_params["lr"] = finetune_lr
-        bat_params["save_every_n_epochs"] = math.ceil(temp_batch_size / (num_images / temp_batch_size))
+        bat_params["save_every_n_epochs"] = math.ceil(32 / (num_images / 32))
         
         #添加LoRA参数
         use_lora = training_type == "LoRA" or training_type == "LyCORIS"
