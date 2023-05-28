@@ -59,7 +59,8 @@ def create_folder_structure(dataset_root_path, dataset_path, folder_name):
     target_folder = Path(dataset_root_path) / folder_name
 
     for folder in ['img', 'reg', 'model']:
-        (target_folder / folder).mkdir(exist_ok=True)
+        folder_path = os.path.join(target_folder, folder)
+        os.makedirs(folder_path, exist_ok=True)
 
     image_path = target_folder / 'img' / dataset_path.name
     shutil.move(str(dataset_path), str(image_path))
@@ -253,7 +254,7 @@ def main():
         bat_params["lr_scheduler"] = lr_scheduler
         bat_params["toml_path"] = toml_path
         bat_params["save_model_as"] = save_model_as
-        bat_params["train_step"] = globals()[f"{training_type.lower()}_train_step"]
+        bat_params["train_step"] = globals()[f"{training_type.lower()}_train_step"] * int(num_images / 500) if num_images > 500 else globals()[f"{training_type.lower()}_train_step"]
         bat_params["lr"] = finetune_lr
         bat_params["save_every_n_epochs"] = math.ceil(temp_batch_size / (num_images / temp_batch_size))
         
@@ -268,9 +269,6 @@ def main():
             bat_params["conv_dim"] = globals()[f"{training_type.lower()}_conv_dim"]
             bat_params["network_module"] = network_module
             if args.chara:
-                if num_images > 500:
-                    bat_params["train_step"] = int(int(bat_params["train_step"]) * (num_images / 500))
-                    
                 bat_params["down_lr_weight"] = chara_down_lr_weight
                 bat_params["up_lr_weight"] = chara_up_lr_weight
                 #强制格式化一次 不然output_name的名字会被覆盖
