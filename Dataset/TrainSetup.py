@@ -252,7 +252,10 @@ def main():
         bat_params["lr_scheduler"] = lr_scheduler
         bat_params["toml_path"] = toml_path
         bat_params["save_model_as"] = save_model_as
-        bat_params["train_step"] = globals()[f"{training_type.lower()}_train_step"] * int(num_images / 500) if num_images > 500 else globals()[f"{training_type.lower()}_train_step"]
+        base_train_step = int(globals()[f"{training_type.lower()}_train_step"])
+        if num_images > 500:
+            base_train_step *= int(num_images / 500)
+        bat_params["train_step"] = base_train_step
         bat_params["lr"] = finetune_lr
         bat_params["save_every_n_epochs"] = math.ceil(32 / (num_images / 32))
         
