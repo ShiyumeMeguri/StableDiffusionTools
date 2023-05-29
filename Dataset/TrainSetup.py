@@ -43,7 +43,6 @@ lora_train_step					=	config.get('DEFAULT', 'lora_train_step')
 lora_network_dim				=	config.get('DEFAULT', 'lora_network_dim')
 lora_conv_dim					=	config.get('DEFAULT', 'lora_conv_dim')
 lora_resolution					=	config.get('DEFAULT', 'lora_resolution')
-lora__text_encoder_lr					=	config.get('DEFAULT', 'lora_resolution')
 	
 lycoris_unet_lr					=	config.get('DEFAULT', 'lycoris_unet_lr')
 lycoris_text_encoder_lr			=	config.get('DEFAULT', 'lycoris_text_encoder_lr')
@@ -254,7 +253,7 @@ def main():
         bat_params["save_model_as"] = save_model_as
         base_train_step = int(globals()[f"{training_type.lower()}_train_step"])
         if num_images > 500:
-            base_train_step *= int(num_images / 500)
+            base_train_step = int(base_train_step * (num_images / 500))
         bat_params["train_step"] = base_train_step
         bat_params["lr"] = finetune_lr
         bat_params["save_every_n_epochs"] = math.ceil(32 / (num_images / 32))
@@ -289,7 +288,8 @@ def main():
                 bat_params["down_lr_weight"] = style_down_lr_weight
                 bat_params["up_lr_weight"] = style_up_lr_weight
                 
-                   
+        if args.noise_offset:
+            bat_config += f"--noise_offset {args.noise_offset} "
         create_config(batch_path, bat_params, bat_config)
         
     
@@ -300,6 +300,7 @@ parser.add_argument('name', type=str, help='folder parent name')
 
 parser.add_argument('--chara', type=str, default='', help='chara prompt')
 parser.add_argument('--chara_weight', type=str, default='', help='chara weight')
+parser.add_argument('--noise_offset', type=str, default='', help='noise offset')
 
 parser.add_argument('--use_reg', action='store_true', help='use reg train')
 parser.add_argument('--reg_dir', type=str, default='', help='the folder path to process')
