@@ -215,7 +215,7 @@ def main():
         toml_params["reg_path"] = args.reg_dir
         toml_params["class_tokens"] = args.reg_tokens
         
-        toml_config = dreambooth_toml_config if args.use_reg else finetune_toml_config
+        toml_config = dreambooth_toml_config if args.reg_dir else finetune_toml_config
         create_config(toml_path, toml_params, toml_config)
         
         #生成bat配置
@@ -302,7 +302,6 @@ parser.add_argument('--chara', type=str, default='', help='chara prompt')
 parser.add_argument('--chara_weight', type=str, default='', help='chara weight')
 parser.add_argument('--noise_offset', type=str, default='', help='noise offset')
 
-parser.add_argument('--use_reg', action='store_true', help='use reg train')
 parser.add_argument('--reg_dir', type=str, default='', help='the folder path to process')
 parser.add_argument('--reg_tokens', type=str, default='', help='reg prompt')
 args = parser.parse_args()
