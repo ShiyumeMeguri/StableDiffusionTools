@@ -261,7 +261,8 @@ def main():
         #添加LoRA参数
         use_lora = training_type == "LoRA" or training_type == "LyCORIS"
         if use_lora:
-            bat_params["output_name"] = f"0_{base_output_name}"
+            lora_count = 0
+            bat_params["output_name"] = f"{lora_count}_{base_output_name}"
             bat_params["unet_lr"] = globals()[f"{training_type.lower()}_unet_lr"]
             bat_params["text_encoder_lr"] = globals()[f"{training_type.lower()}_text_encoder_lr"]
             bat_params["prior_loss_weight"] = globals()[f"{training_type.lower()}_prior_loss_weight"]
@@ -269,17 +270,19 @@ def main():
             bat_params["conv_dim"] = globals()[f"{training_type.lower()}_conv_dim"]
             bat_params["network_module"] = network_module
             if args.chara:
+                lora_count += 1
                 bat_params["down_lr_weight"] = chara_down_lr_weight
                 bat_params["up_lr_weight"] = chara_up_lr_weight
                 #强制格式化一次 不然output_name的名字会被覆盖
                 bat_config = bat_config.format_map(bat_params)
-                bat_params["output_name"] = f"1_{base_output_name}"
+                bat_params["output_name"] = f"{lora_count}_{base_output_name}"
                 bat_params["toml_path"] = toml_path
                 #第一轮训练全tag 第二轮强化训练角色名提示
                 chara_json = process_chara_json_file(prompt_json_path, args.chara)
                 toml_path = f'{base_train_path}_CharaPrompt.toml'
                 #新建一轮训练
                 bat_config += base_batch_config + lora_batch_config
+                bat_config += f""" --network_weights "{model_output_dir}/{lora_count-1}_{base_output_name}.{save_model_as}" """
                 bat_config += f"""
 {resize_lora_path} --new_rank 2 --save_to {model_output_dir}/rank2_{base_output_name}.ckpt --model {model_output_dir}/1_{base_output_name}.ckpt --device cuda"""
                 toml_params["prompt_json_path"] = chara_json
