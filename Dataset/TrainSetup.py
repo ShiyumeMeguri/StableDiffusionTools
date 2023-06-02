@@ -29,6 +29,12 @@ finetune_batch_size				=	config.get('DEFAULT', 'finetune_batch_size')
 finetune_train_step				=	config.get('DEFAULT', 'finetune_train_step')
 finetune_resolution				=	config.get('DEFAULT', 'finetune_resolution')
 	
+dreambooth_lr					=	config.get('DEFAULT', 'dreambooth_lr')
+dreambooth_batch_size			=	config.get('DEFAULT', 'dreambooth_batch_size')
+dreambooth_train_step			=	config.get('DEFAULT', 'dreambooth_train_step')
+dreambooth_resolution			=	config.get('DEFAULT', 'dreambooth_resolution')
+dreambooth_prior_loss_weight	=	config.get('DEFAULT', 'dreambooth_prior_loss_weight')
+	
 chara_down_lr_weight			=	config.get('DEFAULT', 'chara_down_lr_weight')
 chara_mid_lr_weight		    	=	config.get('DEFAULT', 'chara_mid_lr_weight')
 chara_up_lr_weight				=	config.get('DEFAULT', 'chara_up_lr_weight')
@@ -178,6 +184,8 @@ base_batch_config = """
 
 finetune_batch_config = """--learning_rate={lr} """
 
+dreambooth_batch_config = """--learning_rate={lr} --prior_loss_weight={prior_loss_weight} """
+
 lora_batch_config = """--unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "block_lr_zero_threshold=0.1" "down_lr_weight={down_lr_weight}" "up_lr_weight={up_lr_weight}" "mid_lr_weight={mid_lr_weight}" "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" --network_train_unet_only --persistent_data_loader_workers --prior_loss_weight={prior_loss_weight} """
 
 def main():
@@ -202,7 +210,7 @@ def main():
     merge_captions(image_path, prompt_json_path)
     
     #训练配置生成
-    training_types = ["FineTune", "LoRA", "LyCORIS"]
+    training_types = ["DreamBooth", "FineTune", "LoRA", "LyCORIS"]
 
     for training_type in training_types:
         base_train_path = f'{base_path}/{folder_name}_{image_name}_{training_type}'
@@ -237,7 +245,11 @@ def main():
         elif training_type == "FineTune":
             train_script = "fine_tune"
             bat_config += finetune_batch_config
+        elif training_type == "DreamBooth":
+            train_script = "train_db"
+            bat_config += dreambooth_batch_config
             
+        lr = dreambooth_lr if training_type == "DreamBooth" else finetune_lr
         model_output_dir = f"{base_path}/model/{image_name}"
         #基本配置参数
         base_output_name = f"{folder_name}_{image_name}_{training_type}_{lr_scheduler}"
@@ -257,9 +269,10 @@ def main():
         if num_images > 500:
             base_train_step = int(base_train_step * (num_images / 500))
         bat_params["train_step"] = base_train_step
-        bat_params["lr"] = finetune_lr
+        bat_params["lr"] = lr
         bat_params["save_every_n_epochs"] = math.ceil(32 / (num_images / 32))
-        
+        if training_type == "DreamBooth":
+            bat_params["prior_loss_weight"] = dreambooth_prior_loss_weight
         #添加LoRA参数
         use_lora = training_type == "LoRA" or training_type == "LyCORIS"
         if use_lora:
@@ -276,20 +289,6 @@ def main():
                 bat_params["down_lr_weight"] = chara_down_lr_weight
                 bat_params["mid_lr_weight"] = chara_mid_lr_weight
                 bat_params["up_lr_weight"] = chara_up_lr_weight
-                #强制格式化一次 不然output_name的名字会被覆盖
-                bat_config = bat_config.format_map(bat_params)
-                bat_params["output_name"] = f"{lora_count}_{base_output_name}"
-                bat_params["toml_path"] = toml_path
-                #第一轮训练全tag 第二轮强化训练角色名提示
-                chara_json = process_chara_json_file(prompt_json_path, args.chara)
-                toml_path = f'{base_train_path}_CharaPrompt.toml'
-                #新建一轮训练
-                bat_config += base_batch_config + lora_batch_config
-                bat_config += f""" --network_weights "{model_output_dir}/{lora_count-1}_{base_output_name}.{save_model_as}" """
-                bat_config += f"""
-{resize_lora_path} --new_rank 2 --save_to {model_output_dir}/rank2_{base_output_name}.ckpt --model {model_output_dir}/1_{base_output_name}.ckpt --device cuda"""
-                toml_params["prompt_json_path"] = chara_json
-                create_config(toml_path, toml_params, toml_config)
             else:
                 bat_params["down_lr_weight"] = style_down_lr_weight
                 bat_params["mid_lr_weight"] = style_mid_lr_weight
