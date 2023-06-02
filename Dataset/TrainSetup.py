@@ -30,9 +30,11 @@ finetune_train_step				=	config.get('DEFAULT', 'finetune_train_step')
 finetune_resolution				=	config.get('DEFAULT', 'finetune_resolution')
 	
 chara_down_lr_weight			=	config.get('DEFAULT', 'chara_down_lr_weight')
+chara_mid_lr_weight		    	=	config.get('DEFAULT', 'chara_mid_lr_weight')
 chara_up_lr_weight				=	config.get('DEFAULT', 'chara_up_lr_weight')
 
 style_down_lr_weight			=	config.get('DEFAULT', 'style_down_lr_weight')
+style_mid_lr_weight			    =	config.get('DEFAULT', 'style_mid_lr_weight')
 style_up_lr_weight				=	config.get('DEFAULT', 'style_up_lr_weight')
 
 lora_unet_lr					=	config.get('DEFAULT', 'lora_unet_lr')
@@ -176,7 +178,7 @@ base_batch_config = """
 
 finetune_batch_config = """--learning_rate={lr} """
 
-lora_batch_config = """--unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "block_lr_zero_threshold=0.1" "down_lr_weight={down_lr_weight}" "up_lr_weight={up_lr_weight}" "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" --network_train_unet_only --persistent_data_loader_workers --prior_loss_weight={prior_loss_weight} """
+lora_batch_config = """--unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "block_lr_zero_threshold=0.1" "down_lr_weight={down_lr_weight}" "up_lr_weight={up_lr_weight}" "mid_lr_weight={mid_lr_weight}" "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" --network_train_unet_only --persistent_data_loader_workers --prior_loss_weight={prior_loss_weight} """
 
 def main():
     dataset_path = Path(args.path)
@@ -272,6 +274,7 @@ def main():
             if args.chara:
                 lora_count += 1
                 bat_params["down_lr_weight"] = chara_down_lr_weight
+                bat_params["mid_lr_weight"] = chara_mid_lr_weight
                 bat_params["up_lr_weight"] = chara_up_lr_weight
                 #强制格式化一次 不然output_name的名字会被覆盖
                 bat_config = bat_config.format_map(bat_params)
@@ -289,6 +292,7 @@ def main():
                 create_config(toml_path, toml_params, toml_config)
             else:
                 bat_params["down_lr_weight"] = style_down_lr_weight
+                bat_params["mid_lr_weight"] = style_mid_lr_weight
                 bat_params["up_lr_weight"] = style_up_lr_weight
                 
         if args.noise_offset:
