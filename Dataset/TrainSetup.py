@@ -147,7 +147,7 @@ def process_chara_json_file(file_path, tags):
     
 finetune_toml_config = """[general]
 enable_bucket = true
-shuffle_caption = true
+shuffle_caption = false
 keep_tokens = 1
 
 [[datasets]]
@@ -161,7 +161,7 @@ batch_size = {batch_size}
 
 dreambooth_toml_config = """[general]
 enable_bucket = true
-shuffle_caption = true
+shuffle_caption = false
 keep_tokens = 1
 
 [[datasets]]
@@ -180,11 +180,11 @@ batch_size = {batch_size}
 """
 #训练通用配置
 base_batch_config = """
-{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --mixed_precision=fp16 --cache_latents --gradient_checkpointing --save_every_n_epochs={save_every_n_epochs} --lr_scheduler="{lr_scheduler}" """
+{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --mixed_precision=fp16 --cache_latents --gradient_checkpointing --save_every_n_epochs={save_every_n_epochs} --lr_scheduler="{lr_scheduler}" --seed 1234 """
 
 finetune_batch_config = """--learning_rate={lr} """
 
-dreambooth_batch_config = """--learning_rate={lr} --prior_loss_weight={prior_loss_weight} """
+dreambooth_batch_config = """--learning_rate={lr} --prior_loss_weight={prior_loss_weight} --stop_text_encoder_training 1"""
 
 lora_batch_config = """--unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "block_lr_zero_threshold=0.1" "down_lr_weight={down_lr_weight}" "up_lr_weight={up_lr_weight}" "mid_lr_weight={mid_lr_weight}" "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" --network_train_unet_only --persistent_data_loader_workers --prior_loss_weight={prior_loss_weight} """
 
@@ -198,10 +198,10 @@ def main():
     
     run_scripts(image_path)
     
-    if not args.chara:
-        flipped_images = data_augmentation(image_path)
-        if flipped_images:
-            num_images *= 2
+    #if not args.chara:
+    #    flipped_images = data_augmentation(image_path)
+    #    if flipped_images:
+    #        num_images *= 2
     
     image_name = image_path.name
     # tag合并
@@ -305,7 +305,6 @@ parser.add_argument('path', type=str, help='the folder path to process')
 parser.add_argument('name', type=str, help='folder parent name')
 
 parser.add_argument('--chara', type=str, default='', help='chara prompt')
-parser.add_argument('--chara_weight', type=str, default='', help='chara weight')
 parser.add_argument('--noise_offset', type=str, default='', help='noise offset')
 
 parser.add_argument('--reg_dir', type=str, default='', help='the folder path to process')
