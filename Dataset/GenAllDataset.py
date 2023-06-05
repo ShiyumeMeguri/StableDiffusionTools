@@ -43,10 +43,10 @@ for folder_name in folder_names:
                                     boy_count += 1
 
                     # 选择数量较多的关键词
-                    key_word = '1girl' if girl_count > boy_count else '1boy'
+                    key_word = '1girl' if girl_count >= boy_count else '1boy'
                     batch_add_content = f" --chara {key_word}," + ','.join(chara_tags_set)
                 # 生成bat命令
-                bat_commands.append(f'TrainSetup.py "{sub_folder_path}" {folder_name}{batch_add_content}')
+                bat_commands.append(f'D:\StableDiffusionTools\Dataset\TrainSetup.py "{sub_folder_path}" {folder_name}{batch_add_content}')
 
 # 将bat命令写入文件
 with open('GenAllDataset.bat', 'w') as f:
