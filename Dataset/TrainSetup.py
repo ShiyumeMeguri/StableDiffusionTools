@@ -173,7 +173,7 @@ batch_size = {batch_size}
   caption_extension = '.txt'
   
   [[datasets.subsets]]
-  is_reg = true
+  is_reg = {is_reg}
   image_dir = '{reg_path}'
   class_tokens = '{class_tokens}'
   num_repeats = 1
@@ -224,8 +224,9 @@ def main():
         toml_params["prompt_json_path"] = prompt_json_path
         toml_params["reg_path"] = args.reg_dir
         toml_params["class_tokens"] = args.reg_tokens
+        toml_params["is_reg"] = str(args.reg_dir != "").lower()
         
-        toml_config = dreambooth_toml_config if args.reg_dir else finetune_toml_config
+        toml_config = dreambooth_toml_config if args.reg_dir or training_type == "DreamBooth" else finetune_toml_config
         create_config(toml_path, toml_params, toml_config)
         
         #生成bat配置
