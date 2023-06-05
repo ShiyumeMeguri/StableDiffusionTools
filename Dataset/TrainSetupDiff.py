@@ -105,72 +105,73 @@ def process_dataset(path):
     merge_captions(image_path, prompt_json_path)
     
     #训练配置生成
-    training_types = ["LoRA"]
+    training_type = "LoRA"
+    base_train_path = f'{base_path}/{folder_name}_{image_name}_{training_type}'
+    #生成Toml配置
+    toml_path = f'{base_train_path}.toml'
     
-    for training_type in training_types:
-        base_train_path = f'{base_path}/{folder_name}_{image_name}_{training_type}'
-        #生成Toml配置
-        toml_path = f'{base_train_path}.toml'
+    toml_params = {} 
+    toml_params["resolution"] = globals()[f"{training_type.lower()}_resolution"]
+    toml_params["batch_size"] = globals()[f"{training_type.lower()}_batch_size"]
+    toml_params["image_path"] = image_path
+    toml_params["prompt_json_path"] = prompt_json_path
+    
+    toml_config = finetune_toml_config
+    create_config(toml_path, toml_config, toml_params)
+    
+    batch_size = globals()[f"{training_type.lower()}_batch_size"]
         
-        toml_params = {} 
-        toml_params["resolution"] = globals()[f"{training_type.lower()}_resolution"]
-        toml_params["batch_size"] = globals()[f"{training_type.lower()}_batch_size"]
-        toml_params["image_path"] = image_path
-        toml_params["prompt_json_path"] = prompt_json_path
+    bat_config = base_batch_config
+    if training_type == "LoRA":
+        train_script = "train_network"
+        network_module = "networks.lora"
+        bat_config += lora_batch_config
         
-        toml_config = finetune_toml_config
-        create_config(toml_path, toml_config, toml_params)
-        
-        batch_size = globals()[f"{training_type.lower()}_batch_size"]
+    model_output_dir = f"{base_path}/model/{image_name}"
+    #基本配置参数
+    base_output_name = f"{folder_name}_{image_name}_{training_type}_{lr_scheduler}"
+    bat_params = {} 
+    bat_params["sd_scripts_path"] = sd_scripts_path
+    bat_params["train_script"] = train_script
+    bat_params["base_model"] = base_model
+    bat_params["output_dir"] = model_output_dir
+    bat_params["output_name"] = base_output_name
+    bat_params["folder_name"] = folder_name
+    bat_params["image_name"] = image_name
+    bat_params["training_type"] = training_type
+    bat_params["lr_scheduler"] = lr_scheduler
+    bat_params["toml_path"] = toml_path
+    bat_params["save_model_as"] = save_model_as
+    base_train_step = int(globals()[f"{training_type.lower()}_train_step"])
+    if num_images > 7:
+        base_train_step = int(base_train_step * 2)
+    bat_params["train_step"] = base_train_step
+    bat_params["save_every_n_epochs"] = math.ceil(32 / (num_images / 32))
+    #添加LoRA参数
+    bat_params["unet_lr"] = globals()[f"{training_type.lower()}_unet_lr"]
+    bat_params["text_encoder_lr"] = globals()[f"{training_type.lower()}_text_encoder_lr"]
+    bat_params["prior_loss_weight"] = globals()[f"{training_type.lower()}_prior_loss_weight"]
+    bat_params["network_dim"] = globals()[f"{training_type.lower()}_network_dim"]
+    bat_params["conv_dim"] = globals()[f"{training_type.lower()}_conv_dim"]
+    bat_params["network_module"] = network_module
             
-        bat_config = base_batch_config
-        if training_type == "LoRA":
-            train_script = "train_network"
-            network_module = "networks.lora"
-            bat_config += lora_batch_config
-            
-        model_output_dir = f"{base_path}/model/{image_name}"
-        #基本配置参数
-        base_output_name = f"{folder_name}_{image_name}_{training_type}_{lr_scheduler}"
-        bat_params = {} 
-        bat_params["sd_scripts_path"] = sd_scripts_path
-        bat_params["train_script"] = train_script
-        bat_params["base_model"] = base_model
-        bat_params["output_dir"] = model_output_dir
-        bat_params["output_name"] = base_output_name
-        bat_params["folder_name"] = folder_name
-        bat_params["image_name"] = image_name
-        bat_params["training_type"] = training_type
-        bat_params["lr_scheduler"] = lr_scheduler
-        bat_params["toml_path"] = toml_path
-        bat_params["save_model_as"] = save_model_as
-        base_train_step = int(globals()[f"{training_type.lower()}_train_step"])
-        if num_images > 7:
-            base_train_step = int(base_train_step * 2)
-        bat_params["train_step"] = base_train_step
-        bat_params["save_every_n_epochs"] = math.ceil(32 / (num_images / 32))
-        #添加LoRA参数
-        bat_params["unet_lr"] = globals()[f"{training_type.lower()}_unet_lr"]
-        bat_params["text_encoder_lr"] = globals()[f"{training_type.lower()}_text_encoder_lr"]
-        bat_params["prior_loss_weight"] = globals()[f"{training_type.lower()}_prior_loss_weight"]
-        bat_params["network_dim"] = globals()[f"{training_type.lower()}_network_dim"]
-        bat_params["conv_dim"] = globals()[f"{training_type.lower()}_conv_dim"]
-        bat_params["network_module"] = network_module
-                
-        if args.noise_offset:
-            bat_config += f"--noise_offset {args.noise_offset} "
-        
-        bat_config = bat_config.format_map(bat_params)
-    return bat_config
+    if args.noise_offset:
+        bat_config += f"--noise_offset {args.noise_offset} "
+    
+    model_path = f"{model_output_dir}/{base_output_name}.{save_model_as}"
+    bat_config = bat_config.format_map(bat_params)
+    return bat_config, model_path
 
 def main():
     output_name = Path(args.diff).name
     model_output_dir = f"{dataset_root_path}{args.name}/model/{output_name}"
     bat_config = ""
-    bat_config += process_dataset(args.path)
-    bat_config += process_dataset(args.diff)
+    bat_config1, model_path1 = process_dataset(args.path)
+    bat_config2, model_path2 = process_dataset(args.diff)
+    bat_config += bat_config1
+    bat_config += bat_config2
     bat_config += f"""
-{sd_scripts_path}networks/svd_merge_lora.py --models {args.diff} {args.path} --ratios 1 -1 --new_rank {lora_network_dim} --new_conv_rank {lora_conv_dim} --device cuda --save_to {model_output_dir}/{lora_network_dim}x{lora_conv_dim}_{output_name}.ckpt"""
+{sd_scripts_path}networks/svd_merge_lora.py --models {model_path2} {model_path1} --ratios 1 -1 --new_rank {lora_network_dim} --new_conv_rank {lora_conv_dim} --device cuda --save_to {model_output_dir}/{lora_network_dim}x{lora_conv_dim}_{output_name}.ckpt"""
     
     folder_name = args.name
     batch_path = f'{dataset_root_path}{folder_name}/{folder_name}_{Path(args.diff).name}_DiffTrain_LoRA.bat'
