@@ -198,10 +198,10 @@ def main():
     
     run_scripts(image_path)
     
-    #if not args.chara:
-    #    flipped_images = data_augmentation(image_path)
-    #    if flipped_images:
-    #        num_images *= 2
+    if not args.chara:
+        flipped_images = data_augmentation(image_path)
+        if flipped_images:
+            num_images *= 2
     
     image_name = image_path.name
     # tag合并
