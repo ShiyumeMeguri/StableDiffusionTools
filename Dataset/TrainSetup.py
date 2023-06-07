@@ -186,7 +186,7 @@ finetune_batch_config = """--learning_rate={lr} """
 
 dreambooth_batch_config = """--learning_rate={lr} --prior_loss_weight={prior_loss_weight} --stop_text_encoder_training 1"""
 
-lora_batch_config = """--unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "block_lr_zero_threshold=0.1" "down_lr_weight={down_lr_weight}" "up_lr_weight={up_lr_weight}" "mid_lr_weight={mid_lr_weight}" "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" --network_train_unet_only --persistent_data_loader_workers --prior_loss_weight={prior_loss_weight} """
+lora_batch_config = """--unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "down_lr_weight={down_lr_weight}" "up_lr_weight={up_lr_weight}" "mid_lr_weight={mid_lr_weight}" "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" --network_train_unet_only --persistent_data_loader_workers --prior_loss_weight={prior_loss_weight} """
 
 def main():
     dataset_path = Path(args.path)
