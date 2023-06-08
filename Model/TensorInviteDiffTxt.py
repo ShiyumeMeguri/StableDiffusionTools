@@ -34,6 +34,7 @@ def main(input: str, inputB: str):
 
     diff_ratios = {}
     diff_sizes = {}
+    tensor_shapes = {}
     total_diff_size = 0.0
     for layer_name, tensor in input_model.items():
         if layer_name in inputB_model:
@@ -48,6 +49,7 @@ def main(input: str, inputB: str):
             total_diff_size += diff_size
             diff_ratios[layer_name] = diff_ratio
             diff_sizes[layer_name] = diff_size
+            tensor_shapes[layer_name] = list(tensor.size())
         else:
             # 处理B模型缺少A模型层的情况
             continue
@@ -56,8 +58,15 @@ def main(input: str, inputB: str):
     with open(f"{save_dir}/Diff_Ratios.txt", "w") as f:
         for layer_name, diff_ratio in diff_ratios.items():
             diff_size = diff_sizes[layer_name]
-            f.write(f"{diff_ratio:.3%}".zfill(7) + f"\t\tDiff Size: {diff_size:.3f} MB" + "\t\t:\t\t" + f"{layer_name}::1.0\n")
+            tensor_shape = tensor_shapes[layer_name]
+            f.write('{:<10}{:<30}{:<30}{:<50}\n'.format(
+                f"{diff_ratio:.3%}".zfill(7), 
+                f"Diff Size: {diff_size:.3f} MB", 
+                f"Shape: {tensor_shape}",
+                f"{layer_name}::1.0"
+            ))
         f.write(f"\nTotal difference tensor size: {total_diff_size:.3f} MB")
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument("input", type=str, help="Path to input file. Must be a .safetensors or .ckpt file.")
