@@ -6,7 +6,8 @@ import glob
 def check_tags(file_path, tags):
     with open(file_path, 'r', encoding='utf-8') as f:
         contents = f.read()
-        return any(tag in contents for tag in tags)
+        # Split the tags by commas, and check if any are in the file
+        return any(tag in contents for tag in tags.split(','))
 
 def handle_files_in_dir(path, tags):
     for txt_file in glob.glob(os.path.join(path, '*.txt')):
@@ -36,6 +37,5 @@ if __name__ == "__main__":
     parser.add_argument('tags', type=str, help='A comma separated list of tags')
 
     args = parser.parse_args()
-    tags = args.tags.split(',')
 
-    handle_directory(args.directory, tags)
+    handle_directory(args.directory, args.tags)
