@@ -306,16 +306,15 @@ def resize(args):
   state_dict, old_dim, new_alpha = resize_lora_model(lora_sd, save_dtype, args.device, args.dynamic_method, args.dynamic_param, args.verbose)
 
   # update metadata
-  if metadata is None:
-    metadata = {}
+  #if metadata is None:
+  metadata = {}
 
-  comment = metadata.get("ss_training_comment", "")
-
-  metadata["comment"] = f"Hate you"
+  metadata["author"] = f"死夢めぐり"
+  metadata["comment"] = f"すべて滅べ"
 
   model_hash, legacy_hash = train_util.precalculate_safetensors_hashes(state_dict, metadata)
-  metadata["ruri_model_hash"] = model_hash
-  metadata["ruri_legacy_hash"] = legacy_hash
+  metadata["model_hash"] = model_hash
+  metadata["legacy_hash"] = legacy_hash
 
   print(f"saving model to: {args.save_to}")
   save_to_file(args.save_to, state_dict, state_dict, save_dtype, metadata)
@@ -326,11 +325,11 @@ def setup_parser() -> argparse.ArgumentParser:
 
   parser.add_argument("--save_precision", type=str, default=None,
                       choices=[None, "float", "fp16", "bf16"], help="precision in saving, float if omitted / 保存時の精度、未指定時はfloat")
-  parser.add_argument("--save_to", type=str, default=None,
-                      help="destination file name: ckpt or safetensors file / 保存先のファイル名、ckptまたはsafetensors")
-  parser.add_argument("--model", type=str, default=None,
+  parser.add_argument("model", type=str, default=None,
                       help="LoRA model to resize at to new rank: ckpt or safetensors file / 読み込むLoRAモデル、ckptまたはsafetensors")
-  parser.add_argument("--device", type=str, default=None, help="device to use, cuda for GPU / 計算を行うデバイス、cuda でGPUを使う")
+  parser.add_argument("save_to", type=str, default=None,
+                      help="destination file name: ckpt or safetensors file / 保存先のファイル名、ckptまたはsafetensors")
+  parser.add_argument("--device", type=str, default='cuda', help="device to use, cuda for GPU / 計算を行うデバイス、cuda でGPUを使う")
   parser.add_argument("--verbose", action="store_true", 
                       help="Display verbose resizing information / rank変更時の詳細情報を出力する")
   parser.add_argument("--dynamic_method", type=str, default=None, choices=[None, "sv_ratio", "sv_fro", "sv_cumulative"],

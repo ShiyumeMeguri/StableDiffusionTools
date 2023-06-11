@@ -147,7 +147,7 @@ def process_chara_json_file(file_path, tags):
     
 finetune_toml_config = """[general]
 enable_bucket = true
-shuffle_caption = false
+shuffle_caption = true
 keep_tokens = 1
 
 [[datasets]]
@@ -161,7 +161,7 @@ batch_size = {batch_size}
 
 dreambooth_toml_config = """[general]
 enable_bucket = true
-shuffle_caption = false
+shuffle_caption = true
 keep_tokens = 1
 
 [[datasets]]
@@ -224,7 +224,7 @@ def main():
         toml_params["prompt_json_path"] = prompt_json_path
         toml_params["reg_path"] = args.reg_dir
         toml_params["class_tokens"] = args.reg_tokens
-        toml_params["is_reg"] = str(args.reg_dir != "").lower()
+        toml_params["is_reg"] = str(args.reg_dir != '').lower()
         
         toml_config = dreambooth_toml_config if args.reg_dir or training_type == "DreamBooth" else finetune_toml_config
         create_config(toml_path, toml_params, toml_config)
