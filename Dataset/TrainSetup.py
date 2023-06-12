@@ -184,7 +184,7 @@ base_batch_config = """
 
 finetune_batch_config = """--learning_rate={lr} """
 
-dreambooth_batch_config = """--learning_rate={lr} --prior_loss_weight={prior_loss_weight} --stop_text_encoder_training 1"""
+dreambooth_batch_config = """--learning_rate={lr} --prior_loss_weight={prior_loss_weight} --stop_text_encoder_training 1 """
 
 lora_batch_config = """--unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "down_lr_weight={down_lr_weight}" "up_lr_weight={up_lr_weight}" "mid_lr_weight={mid_lr_weight}" "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" --network_train_unet_only --persistent_data_loader_workers --prior_loss_weight={prior_loss_weight} """
 
@@ -250,6 +250,10 @@ def main():
             train_script = "train_db"
             bat_config += dreambooth_batch_config
             
+        if not args.chara:
+            bat_config += """--flip_aug """
+            num_images *= 2
+        
         lr = dreambooth_lr if training_type == "DreamBooth" else finetune_lr
         model_output_dir = f"{base_path}/model/{folder_name}_{image_name}"
         #基本配置参数
