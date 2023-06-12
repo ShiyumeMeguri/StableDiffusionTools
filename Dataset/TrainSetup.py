@@ -198,10 +198,10 @@ def main():
     
     run_scripts(image_path)
     
-    if not args.chara:
-        flipped_images = data_augmentation(image_path)
-        if flipped_images:
-            num_images *= 2
+    #if not args.chara:
+    #    flipped_images = data_augmentation(image_path)
+    #    if flipped_images:
+    #        num_images *= 2
     
     image_name = image_path.name
     # tag合并
@@ -251,7 +251,7 @@ def main():
             bat_config += dreambooth_batch_config
             
         lr = dreambooth_lr if training_type == "DreamBooth" else finetune_lr
-        model_output_dir = f"{base_path}/model/{image_name}"
+        model_output_dir = f"{base_path}/model/{folder_name}_{image_name}"
         #基本配置参数
         base_output_name = f"{folder_name}_{image_name}_{training_type}_{lr_scheduler}"
         bat_params = {} 
