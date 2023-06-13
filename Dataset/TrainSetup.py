@@ -23,6 +23,9 @@ lr_scheduler					=	config.get('DEFAULT', 'lr_scheduler')
 
 resize_lora_path 				=	config.get('DEFAULT', 'resize_lora_path')
 sd_scripts_path					=	config.get('DEFAULT', 'sd_scripts_path')
+sample_prompts					=	config.get('DEFAULT', 'sample_prompts')
+
+weight_decay					=	config.get('DEFAULT', 'weight_decay')
 	
 finetune_lr						=	config.get('DEFAULT', 'finetune_lr')
 finetune_batch_size				=	config.get('DEFAULT', 'finetune_batch_size')
@@ -251,7 +254,7 @@ def main():
             bat_config += dreambooth_batch_config
             
         if not args.chara:
-            bat_config += """--flip_aug --color_aug --random_crop --face_crop_aug_range 1.0,3.0 """
+            bat_config += f"""--flip_aug --color_aug --random_crop --face_crop_aug_range 1.0,3.0 --optimizer_args weight_decay={weight_decay} betas=.9,.999 --sample_prompts {sample_prompts} --sample_sampler 'ddim' --sample_every_n_epochs 5 """
         
         lr = dreambooth_lr if training_type == "DreamBooth" else finetune_lr
         model_output_dir = f"{base_path}/model/{folder_name}_{image_name}"
