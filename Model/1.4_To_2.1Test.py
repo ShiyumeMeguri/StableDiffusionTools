@@ -6,6 +6,8 @@ import numpy as np
 import torch
 import os
 import matplotlib.pyplot as plt
+from torch.nn import functional as F
+import re
 
 from torch.nn.functional import interpolate
 
@@ -38,8 +40,8 @@ def main(input: str, inputB: str):
     input = Path(input)
     inputB = Path(inputB)
 
-    input_model = load_model(input, "cpu")
-    inputB_model = load_model(inputB, "cpu")
+    input_model = load_model(input, "cuda")
+    inputB_model = load_model(inputB, "cuda")
 
     # Create directory for tensor if it doesn't exist
     save_dir = f"{input.stem} - {inputB.stem}"
@@ -47,29 +49,112 @@ def main(input: str, inputB: str):
         os.makedirs(save_dir)
     
     for layer_name, tensor in input_model.items():
-        if layer_name in inputB_model:
-            b_tensor = inputB_model[layer_name]
+        if "cond_stage_model.model." in layer_name or layer_name in inputB_model:
+            b_tensor = None
+            # 处理UNet
+            if "model.diffusion_model." in layer_name:
+                b_tensor = inputB_model[layer_name]
+                # 先比较AB模型的形状是否不同
+                if tensor.shape != b_tensor.shape:
+                    if b_tensor.ndim == 4:
+                        # 使用squeeze函数移除大小为1的维度
+                        a_tensor = b_tensor.squeeze(-1).squeeze(-1)
+                    elif b_tensor.ndim == 2:
+                        # 使用插值函数调整尺寸
+                        a_tensor = torch.nn.functional.interpolate(b_tensor.unsqueeze(0), size=[1024], mode='linear', align_corners=False).squeeze(0)
+                    else:
+                        a_tensor = b_tensor  # 如果不是以上两种情况，不修改tensor
 
-            # 先比较AB模型的形状是否不同
-            if tensor.shape != b_tensor.shape:
-                # 对于第一个权重
-                if b_tensor.ndim == 4:
-                    # 使用squeeze函数移除大小为1的维度
-                    a_tensor = b_tensor.squeeze(-1).squeeze(-1)
+                    print(f"{layer_name} 形状改变 \t {a_tensor.shape} \t {b_tensor.shape}")
+                    input_model[layer_name] = a_tensor
+                    continue
+            # 处理TE    
+            if "cond_stage_model.model." in layer_name:
+                index = 22
+                if "cond_stage_model.model.transformer.resblocks." in layer_name:
+                    index = int(layer_name.split("resblocks.")[1].split(".")[0])
+                if "attn.in_proj_bias" in layer_name:
+                    if index > 11:
+                        continue
+                    k = inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.self_attn.k_proj.bias"]
+                    v = inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.self_attn.v_proj.bias"]
+                    q = inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.self_attn.q_proj.bias"]
 
-                # 对于第二个权重
-                elif b_tensor.ndim == 2:
-                    # 使用插值函数调整尺寸
-                    a_tensor = torch.nn.functional.interpolate(b_tensor.float().unsqueeze(0), size=[1024], mode='linear', align_corners=False).squeeze(0).half()
+                    k_proj_bias = F.interpolate(k.unsqueeze(0).unsqueeze(0), size=[1024], mode='linear', align_corners=False).squeeze(0).squeeze(0)
+                    v_proj_bias = F.interpolate(v.unsqueeze(0).unsqueeze(0), size=[1024], mode='linear', align_corners=False).squeeze(0).squeeze(0)
+                    q_proj_bias = F.interpolate(q.unsqueeze(0).unsqueeze(0), size=[1024], mode='linear', align_corners=False).squeeze(0).squeeze(0)
+                    
+                    b_tensor = torch.cat([k_proj_bias, v_proj_bias, q_proj_bias], dim=0)  # Shape: [3072]
 
-                else:
-                    a_tensor = b_tensor  # 如果不是以上两种情况，不修改tensor
+                if "attn.in_proj_weight" in layer_name:
+                    if index > 11:
+                        continue
+                    k_proj_weight = F.interpolate(inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.self_attn.k_proj.weight"].unsqueeze(0).unsqueeze(0), size=[1024, 1024], mode='bilinear', align_corners=False).squeeze(0).squeeze(0)
+                    v_proj_weight = F.interpolate(inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.self_attn.v_proj.weight"].unsqueeze(0).unsqueeze(0), size=[1024, 1024], mode='bilinear', align_corners=False).squeeze(0).squeeze(0)
+                    q_proj_weight = F.interpolate(inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.self_attn.q_proj.weight"].unsqueeze(0).unsqueeze(0), size=[1024, 1024], mode='bilinear', align_corners=False).squeeze(0).squeeze(0)
+                    b_tensor = torch.cat([k_proj_weight, v_proj_weight, q_proj_weight], dim=0)  # Shape: [3072, 1024]
+                    
+                if "attn.out_proj.bias" in layer_name:
+                    if index > 11:
+                        continue
+                    b_tensor = F.interpolate(inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.self_attn.out_proj.bias"].unsqueeze(0).unsqueeze(0), size=[1024], mode='linear', align_corners=False).squeeze(0).squeeze(0)
 
-                print(f"{layer_name} \t\t {a_tensor.shape} \t\t {tensor.shape}")
-                input_model[layer_name] = a_tensor
-                continue
+                if "attn.out_proj.weight" in layer_name:
+                    if index > 11:
+                        continue
+                    b_tensor = F.interpolate(inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.self_attn.out_proj.weight"].unsqueeze(0).unsqueeze(0), size=[1024, 1024], mode='bilinear', align_corners=False).squeeze(0).squeeze(0)
+
+                if "ln_1.bias" in layer_name or "ln_1.weight" in layer_name or "ln_2.bias" in layer_name or "ln_2.weight" in layer_name:
+                    if index > 11:
+                        continue
+                    if "ln_1.bias" in layer_name:
+                        b_tensor = F.interpolate(inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.layer_norm1.bias"].unsqueeze(0).unsqueeze(0), size=[1024], mode='linear', align_corners=False).squeeze(0).squeeze(0)
+                    if "ln_1.weight" in layer_name:
+                        b_tensor = F.interpolate(inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.layer_norm1.weight"].unsqueeze(0).unsqueeze(0), size=[1024], mode='linear', align_corners=False).squeeze(0).squeeze(0)
+                    if "ln_2.bias" in layer_name:
+                        b_tensor = F.interpolate(inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.layer_norm2.bias"].unsqueeze(0).unsqueeze(0), size=[1024], mode='linear', align_corners=False).squeeze(0).squeeze(0)
+                    if "ln_2.weight" in layer_name:
+                        b_tensor = F.interpolate(inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.layer_norm2.weight"].unsqueeze(0).unsqueeze(0), size=[1024], mode='linear', align_corners=False).squeeze(0).squeeze(0)
+
+                if "mlp.c_fc.bias" in layer_name:
+                    if index > 11:
+                        continue
+                    b_tensor = F.interpolate(inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.mlp.fc1.bias"].unsqueeze(0).unsqueeze(0), size=[4096], mode='linear', align_corners=False).squeeze(0).squeeze(0)
+
+                if "mlp.c_fc.weight" in layer_name:
+                    if index > 11:
+                        continue
+                    b_tensor = F.interpolate(inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.mlp.fc1.weight"].unsqueeze(0).unsqueeze(0), size=[4096, 1024], mode='bilinear', align_corners=False).squeeze(0).squeeze(0)
+
+                if "mlp.c_proj.bias" in layer_name:
+                    if index > 11:
+                        continue
+                    b_tensor = F.interpolate(inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.mlp.fc2.bias"].unsqueeze(0).unsqueeze(0), size=[1024], mode='linear', align_corners=False).squeeze(0).squeeze(0)
+
+                if "mlp.c_proj.weight" in layer_name:
+                    if index > 11:
+                        continue
+                    b_tensor = F.interpolate(inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.mlp.fc2.weight"].unsqueeze(0).unsqueeze(0), size=[1024, 4096], mode='bilinear', align_corners=False).squeeze(0).squeeze(0)
+
+                if "ln_final" in layer_name:
+                    if "bias" in layer_name:
+                        b_tensor = F.interpolate(inputB_model[f"cond_stage_model.transformer.text_model.final_layer_norm.bias"].unsqueeze(0).unsqueeze(0), size=[1024], mode='linear', align_corners=False).squeeze(0).squeeze(0)
+                    if "weight" in layer_name:
+                        b_tensor = F.interpolate(inputB_model[f"cond_stage_model.transformer.text_model.final_layer_norm.weight"].unsqueeze(0).unsqueeze(0), size=[1024], mode='linear', align_corners=False).squeeze(0).squeeze(0)
+
+                if "positional_embedding" in layer_name:
+                    b_tensor = F.interpolate(inputB_model[f"cond_stage_model.transformer.text_model.embeddings.position_embedding.weight"].unsqueeze(0).unsqueeze(0), size=[77, 1024], mode='bilinear', align_corners=False).squeeze(0).squeeze(0)
+
+                if "token_embedding" in layer_name:
+                    b_tensor = F.interpolate(inputB_model[f"cond_stage_model.transformer.text_model.embeddings.token_embedding.weight"].unsqueeze(0).unsqueeze(0), size=[49408, 1024], mode='bilinear', align_corners=False).squeeze(0).squeeze(0)
+
+                if "text_model.embeddings.position_ids" in layer_name:
+                    b_tensor = inputB_model[f"cond_stage_model.transformer.text_model.embeddings.position_ids"]
+
+            if b_tensor != None:
                 # 用新的tensor更新模型
-            input_model[layer_name] = b_tensor
+                print(f"{layer_name} \t {b_tensor.shape}")
+                input_model[layer_name] = b_tensor
         else:
             # 处理B模型缺少A模型层的情况
             continue
@@ -78,8 +163,8 @@ def main(input: str, inputB: str):
     save_state_dict(input_model, "ac.ckpt", "ckpt")  # Save filtered state_dict
 
 parser = argparse.ArgumentParser()
-parser.add_argument("input", type=str, help="Path to input file. Must be a .safetensors or .ckpt file.")
-parser.add_argument("inputB", type=str, help="Path to input file. Must be a .safetensors or .ckpt file.")
+parser.add_argument("input", type=str, help="2.1模型")
+parser.add_argument("inputB", type=str, help="1.x模型")
 args = parser.parse_args()
 
 if __name__ == "__main__":
