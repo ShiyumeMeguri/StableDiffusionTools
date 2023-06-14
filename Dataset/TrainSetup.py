@@ -183,7 +183,7 @@ batch_size = {batch_size}
 """
 #训练通用配置
 base_batch_config = """
-{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --mixed_precision=fp16 --gradient_checkpointing --save_every_n_epochs={save_every_n_epochs} --lr_scheduler="{lr_scheduler}" --seed 1234 """
+{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --mixed_precision=fp16 --gradient_checkpointing --save_every_n_epochs={save_every_n_epochs} --lr_scheduler="{lr_scheduler}" --seed 1234 --sample_prompts {sample_prompts} --sample_sampler ddim --sample_every_n_epochs 5 """
 #--cache_latents 移除 为了更好的数据增强
 finetune_batch_config = """--learning_rate={lr} """
 
@@ -254,7 +254,7 @@ def main():
             bat_config += dreambooth_batch_config
             
         if not args.chara:
-            bat_config += f"""--flip_aug --color_aug --random_crop --face_crop_aug_range 1.0,3.0 --sample_prompts {sample_prompts} --sample_sampler ddim --sample_every_n_epochs 5 """
+            bat_config += f"""--flip_aug  --optimizer_args weight_decay=0.2 betas=.9,.999"""
         
         lr = dreambooth_lr if training_type == "DreamBooth" else finetune_lr
         model_output_dir = f"{base_path}/model/{folder_name}_{image_name}"
@@ -263,6 +263,7 @@ def main():
         bat_params = {} 
         bat_params["sd_scripts_path"] = sd_scripts_path
         bat_params["train_script"] = train_script
+        bat_params["sample_prompts"] = sample_prompts
         bat_params["base_model"] = base_model
         bat_params["output_dir"] = model_output_dir
         bat_params["output_name"] = base_output_name
