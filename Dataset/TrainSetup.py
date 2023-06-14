@@ -183,11 +183,11 @@ batch_size = {batch_size}
 """
 #训练通用配置
 base_batch_config = """
-{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --mixed_precision=fp16 --gradient_checkpointing --save_every_n_epochs={save_every_n_epochs} --lr_scheduler="{lr_scheduler}" --seed 1234 --sample_prompts {sample_prompts} --sample_sampler ddim --sample_every_n_epochs 5 """
+{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --mixed_precision=fp16 --full_fp16 --gradient_checkpointing --save_every_n_epochs={save_every_n_epochs} --lr_scheduler="{lr_scheduler}" --seed 1234 --sample_prompts {sample_prompts} --sample_sampler ddim --sample_every_n_epochs 5 """
 #--cache_latents 移除 为了更好的数据增强
 finetune_batch_config = """--learning_rate={lr} """
 
-dreambooth_batch_config = """--learning_rate={lr} --prior_loss_weight={prior_loss_weight} --stop_text_encoder_training 1 """
+dreambooth_batch_config = """--learning_rate={lr} --prior_loss_weight={prior_loss_weight} --stop_text_encoder_training 0 """
 
 lora_batch_config = """--unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "down_lr_weight={down_lr_weight}" "up_lr_weight={up_lr_weight}" "mid_lr_weight={mid_lr_weight}" "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" --network_train_unet_only --persistent_data_loader_workers --prior_loss_weight={prior_loss_weight} """
 
@@ -254,7 +254,7 @@ def main():
             bat_config += dreambooth_batch_config
             
         if not args.chara:
-            bat_config += f"""--flip_aug  --optimizer_args weight_decay=0.2 betas=.9,.999"""
+            bat_config += f"""--flip_aug --color_aug --random_crop --face_crop_aug_range 1.0,3.0 --optimizer_args weight_decay=0.2 betas=.9,.999"""
         
         lr = dreambooth_lr if training_type == "DreamBooth" else finetune_lr
         model_output_dir = f"{base_path}/model/{folder_name}_{image_name}"
@@ -274,8 +274,8 @@ def main():
         bat_params["toml_path"] = toml_path
         bat_params["save_model_as"] = save_model_as
         base_train_step = int(globals()[f"{training_type.lower()}_train_step"])
-        if num_images > 500:
-            base_train_step = int(base_train_step * (num_images / 500))
+#        if num_images > 500:
+#            base_train_step = int(base_train_step * (num_images / 500))
         bat_params["train_step"] = base_train_step
         bat_params["lr"] = lr
         bat_params["save_every_n_epochs"] = math.ceil(32 / (num_images / 32))
