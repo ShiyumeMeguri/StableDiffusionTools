@@ -254,7 +254,7 @@ def main():
             bat_config += dreambooth_batch_config
             
         if not args.chara:
-            bat_config += f"""--flip_aug --color_aug --random_crop --face_crop_aug_range 1.0,3.0 --optimizer_args weight_decay=0.2 betas=.9,.999"""
+            bat_config += f"""--flip_aug --color_aug --random_crop --face_crop_aug_range 1.0,3.0 --optimizer_args weight_decay={weight_decay} betas=.9,.999"""
         
         lr = dreambooth_lr if training_type == "DreamBooth" else finetune_lr
         model_output_dir = f"{base_path}/model/{folder_name}_{image_name}"
