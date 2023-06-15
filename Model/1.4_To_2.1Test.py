@@ -74,7 +74,7 @@ def main(input: str, inputB: str):
                     index = int(layer_name.split("resblocks.")[1].split(".")[0])
                 if "attn.in_proj_bias" in layer_name:
                     if index > 11:
-                        input_model[layer_name] = torch.empty(input_model[layer_name].shape)
+                        input_model[layer_name] = torch.zeros_like(input_model[layer_name])
                         continue
                     k = inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.self_attn.k_proj.bias"]
                     v = inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.self_attn.v_proj.bias"]
@@ -88,7 +88,7 @@ def main(input: str, inputB: str):
 
                 if "attn.in_proj_weight" in layer_name:
                     if index > 11:
-                        input_model[layer_name] = torch.empty(input_model[layer_name].shape)
+                        input_model[layer_name] = torch.zeros_like(input_model[layer_name])
                         continue
                     k = inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.self_attn.k_proj.weight"]
                     v = inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.self_attn.v_proj.weight"]
@@ -101,21 +101,21 @@ def main(input: str, inputB: str):
                     
                 if "attn.out_proj.bias" in layer_name:
                     if index > 11:
-                        input_model[layer_name] = torch.empty(input_model[layer_name].shape)
+                        input_model[layer_name] = torch.zeros_like(input_model[layer_name])
                         continue
                     b = inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.self_attn.out_proj.bias"]
                     b_tensor = F.pad(b, (0, 256))
 
                 if "attn.out_proj.weight" in layer_name:
                     if index > 11:
-                        input_model[layer_name] = torch.empty(input_model[layer_name].shape)
+                        input_model[layer_name] = torch.zeros_like(input_model[layer_name])
                         continue
                     w = inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.self_attn.out_proj.weight"]
                     b_tensor = F.pad(w, (0, 256, 0, 256))
 
                 if "ln_1.bias" in layer_name or "ln_1.weight" in layer_name or "ln_2.bias" in layer_name or "ln_2.weight" in layer_name:
                     if index > 11:
-                        input_model[layer_name] = torch.empty(input_model[layer_name].shape)
+                        input_model[layer_name] = torch.zeros_like(input_model[layer_name])
                         continue
                     if "ln_1.bias" in layer_name:
                         b = inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.layer_norm1.bias"]
@@ -132,28 +132,28 @@ def main(input: str, inputB: str):
 
                 if "mlp.c_fc.bias" in layer_name:
                     if index > 11:
-                        input_model[layer_name] = torch.empty(input_model[layer_name].shape)
+                        input_model[layer_name] = torch.zeros_like(input_model[layer_name])
                         continue
                     b = inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.mlp.fc1.bias"]
                     b_tensor = F.pad(b, (0, 1024))
 
                 if "mlp.c_fc.weight" in layer_name:
                     if index > 11:
-                        input_model[layer_name] = torch.empty(input_model[layer_name].shape)
+                        input_model[layer_name] = torch.zeros_like(input_model[layer_name])
                         continue
                     w = inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.mlp.fc1.weight"]
                     b_tensor = F.pad(w, (0, 256, 0, 1024))
 
                 if "mlp.c_proj.bias" in layer_name:
                     if index > 11:
-                        input_model[layer_name] = torch.empty(input_model[layer_name].shape)
+                        input_model[layer_name] = torch.zeros_like(input_model[layer_name])
                         continue
                     b = inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.mlp.fc2.bias"]
                     b_tensor = F.pad(b, (0, 256))
 
                 if "mlp.c_proj.weight" in layer_name:
                     if index > 11:
-                        input_model[layer_name] = torch.empty(input_model[layer_name].shape)
+                        input_model[layer_name] = torch.zeros_like(input_model[layer_name])
                         continue
                     w = inputB_model[f"cond_stage_model.transformer.text_model.encoder.layers.{index}.mlp.fc2.weight"]
                     b_tensor = F.pad(w, (0, 1024, 0, 256))
