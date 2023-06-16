@@ -306,18 +306,18 @@ def main():
                 bat_params["mid_lr_weight"] = style_mid_lr_weight
                 bat_params["up_lr_weight"] = style_up_lr_weight
             # 先格式化第一次训练的参数
-            temp_bat_config = bat_config.format_map(bat_params)
-            bat_config = f"""{temp_bat_config} {bat_config} --network_weights {model_output_dir}/{lora_count}_{base_output_name}.{save_model_as}"""
-            lora_count += 1
-            
-            toml_params["resolution"] = int(globals()[f"{training_type.lower()}_resolution"]) + 256
-            toml_params["batch_size"] = globals()[f"{training_type.lower()}_batch_size"]
-            
-            toml_path_768 = f"{toml_path}_768.toml"
-            create_config(toml_path_768, toml_params, toml_config)
-            
-            bat_params["toml_path"] = toml_path_768
-            bat_params["output_name"] = f"{lora_count}_{base_output_name}"
+            #temp_bat_config = bat_config.format_map(bat_params)
+            #bat_config = f"""{temp_bat_config} {bat_config} --network_weights {model_output_dir}/{lora_count}_{base_output_name}.{save_model_as}"""
+            #lora_count += 1
+            #
+            #toml_params["resolution"] = int(globals()[f"{training_type.lower()}_resolution"]) + 256
+            #toml_params["batch_size"] = globals()[f"{training_type.lower()}_batch_size"]
+            #
+            #toml_path_768 = f"{toml_path}_768.toml"
+            #create_config(toml_path_768, toml_params, toml_config)
+            #
+            #bat_params["toml_path"] = toml_path_768
+            #bat_params["output_name"] = f"{lora_count}_{base_output_name}"
             
                 
         create_config(batch_path, bat_params, bat_config)
