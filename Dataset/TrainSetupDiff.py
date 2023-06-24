@@ -86,7 +86,7 @@ batch_size = {batch_size}
 base_batch_config = """
 {sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --mixed_precision=fp16 --cache_latents --gradient_checkpointing --save_every_n_epochs={save_every_n_epochs} --lr_scheduler="{lr_scheduler}" --seed 1234 """
 
-lora_batch_config = """--unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" --network_train_unet_only --persistent_data_loader_workers --prior_loss_weight={prior_loss_weight} """
+lora_batch_config = """--unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "down_lr_weight=0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0" "up_lr_weight=1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0" "mid_lr_weight=0.01" "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" --network_train_unet_only --persistent_data_loader_workers --prior_loss_weight={prior_loss_weight} """
 
 def process_dataset(path):
     dataset_path = Path(path)
@@ -143,8 +143,6 @@ def process_dataset(path):
     bat_params["toml_path"] = toml_path
     bat_params["save_model_as"] = save_model_as
     base_train_step = int(globals()[f"{training_type.lower()}_train_step"])
-    if num_images > 7:
-        base_train_step = int(base_train_step * 2)
     bat_params["train_step"] = base_train_step
     bat_params["save_every_n_epochs"] = math.ceil(32 / (num_images / 32))
     #添加LoRA参数
