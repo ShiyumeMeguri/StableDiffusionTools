@@ -55,7 +55,7 @@ def filter_layers(state_dict: dict[str, torch.Tensor], state_dict_B: dict[str, t
                 filtered_state_dict[layer_name] = state_dict_B[layer_name] * math.sqrt(abs(ratio))
             else:
                 filtered_state_dict[layer_name] = weight * math.sqrt(abs(ratio))
-        #filtered_state_dict[layer_name] = weight
+        filtered_state_dict[layer_name] = torch.zeros_like(weight)
 
     return filtered_state_dict
 
