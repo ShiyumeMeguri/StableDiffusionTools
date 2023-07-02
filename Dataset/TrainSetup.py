@@ -54,7 +54,6 @@ lora_train_step					=	config.get('DEFAULT', 'lora_train_step')
 lora_network_dim				=	config.get('DEFAULT', 'lora_network_dim')
 lora_conv_dim					=	config.get('DEFAULT', 'lora_conv_dim')
 lora_resolution					=	config.get('DEFAULT', 'lora_resolution')
-lora_network_dropout			=	config.get('DEFAULT', 'lora_network_dropout')
 	
 lycoris_unet_lr					=	config.get('DEFAULT', 'lycoris_unet_lr')
 lycoris_text_encoder_lr			=	config.get('DEFAULT', 'lycoris_text_encoder_lr')
@@ -64,7 +63,6 @@ lycoris_train_step				=	config.get('DEFAULT', 'lycoris_train_step')
 lycoris_network_dim				=	config.get('DEFAULT', 'lycoris_network_dim')
 lycoris_conv_dim				=	config.get('DEFAULT', 'lycoris_conv_dim')
 lycoris_resolution				=	config.get('DEFAULT', 'lycoris_resolution')
-lycoris_network_dropout			=	config.get('DEFAULT', 'lycoris_network_dropout')
 
 def create_folder_structure(dataset_root_path, dataset_path, folder_name):
     target_folder = Path(dataset_root_path) / folder_name
@@ -184,13 +182,13 @@ batch_size = {batch_size}
 """
 #训练通用配置
 base_batch_config = """
-{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --mixed_precision=fp16 --full_fp16 --gradient_checkpointing --save_every_n_epochs={save_every_n_epochs} --lr_scheduler="{lr_scheduler}" --seed 1234 --sample_prompts {sample_prompts} --sample_sampler ddim --sample_every_n_epochs {save_every_n_epochs} """
+{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --mixed_precision=fp16 --full_fp16 --gradient_checkpointing --save_every_n_epochs={save_every_n_epochs} --lr_scheduler="{lr_scheduler}" --seed 1234 """# --sample_prompts {sample_prompts} --sample_sampler ddim --sample_every_n_epochs {save_every_n_epochs} """
 #--cache_latents 恢复 为了更多的batch
 finetune_batch_config = """--learning_rate={lr} """
 
 dreambooth_batch_config = """--learning_rate={lr} --prior_loss_weight={prior_loss_weight} """
 
-lora_batch_config = """--unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "network_dropout={network_dropout}" "down_lr_weight={down_lr_weight}" "up_lr_weight={up_lr_weight}" "mid_lr_weight={mid_lr_weight}" "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" --network_train_unet_only --persistent_data_loader_workers --prior_loss_weight={prior_loss_weight} """
+lora_batch_config = """--unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "down_lr_weight={down_lr_weight}" "up_lr_weight={up_lr_weight}" "mid_lr_weight={mid_lr_weight}" "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" --network_train_unet_only --persistent_data_loader_workers --prior_loss_weight={prior_loss_weight} """
 
 def main():
     dataset_path = Path(args.path)
@@ -298,7 +296,6 @@ def main():
             bat_params["prior_loss_weight"] = globals()[f"{training_type.lower()}_prior_loss_weight"]
             bat_params["network_dim"] = globals()[f"{training_type.lower()}_network_dim"]
             bat_params["conv_dim"] = globals()[f"{training_type.lower()}_conv_dim"]
-            bat_params["network_dropout"] = globals()[f"{training_type.lower()}_network_dropout"]
             bat_params["network_module"] = network_module
             if args.chara:
                 bat_params["down_lr_weight"] = chara_down_lr_weight
@@ -309,31 +306,29 @@ def main():
                 bat_params["mid_lr_weight"] = style_mid_lr_weight
                 bat_params["up_lr_weight"] = style_up_lr_weight
             
-            #bat_config_list = []
-            #
-            #for temp_resolution in range(256, 1665, 128):
-            #    # 先格式化第一次训练的参数
-            #    temp_bat_config = bat_config.format_map(bat_params)
-            #    new_bat_config = f"""{temp_bat_config} --network_weights {model_output_dir}/{lora_count-1}_{base_output_name}.{save_model_as}"""
-            #    lora_count += 1
-            #    
-            #    toml_params["resolution"] = temp_resolution
-            #    toml_params["batch_size"] = globals()[f"{training_type.lower()}_batch_size"]
-            #    
-            #    toml_path_new = f"{toml_path}_{temp_resolution}.toml"
-            #    create_config(toml_path_new, toml_params, toml_config)
-            #    
-            #    bat_params["toml_path"] = toml_path_new
-            #    bat_params["output_name"] = f"{lora_count}_{base_output_name}"
-            #    
-            #    bat_config_list.append(new_bat_config)
-            #
-            ## Join all the bat_configs
-            #bat_config = '\n'.join(bat_config_list)
+            bat_config_list = ""
+            style_up_lr_weight_base = [0.0]*12
+
+            for index in range(3, 12):  # index 3 to 11
+                output_layer = style_up_lr_weight_base.copy()
+                output_layer[index] = 1.0
+                output_layer = ",".join(str(x) for x in output_layer)
+                
+                bat_params["up_lr_weight"] = output_layer  
+                bat_params["output_name"] = f"{lora_count}_{base_output_name}"
+                
+                temp_bat_config = bat_config.format_map(bat_params)
+                new_bat_config = f"""{temp_bat_config} --network_weights {model_output_dir}/{lora_count-1}_{base_output_name}.{save_model_as}"""
+                lora_count += 1
+                style_up_lr_weight_base[index] = 0.01
+                
+                bat_config_list += new_bat_config
+
+            # Join all the bat_configs
+            bat_config = bat_config_list
 
         create_config(batch_path, bat_params, bat_config)
         
-    
 # 解析命令行参数
 parser = argparse.ArgumentParser(description='自动化配置数据集.')
 parser.add_argument('path', type=str, help='the folder path to process')
