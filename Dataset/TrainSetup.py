@@ -223,7 +223,12 @@ def main():
         
         toml_params = {} 
         toml_params["resolution"] = globals()[f"{training_type.lower()}_resolution"]
-        toml_params["batch_size"] = globals()[f"{training_type.lower()}_batch_size"]
+        batch_size = int(globals()[f"{training_type.lower()}_batch_size"])
+        if num_images > 200:
+            batch_size = int(batch_size * (num_images / 200))
+        if batch_size >= 32:
+            batch_size = 32
+        toml_params["batch_size"] = batch_size
         toml_params["image_path"] = image_path
         toml_params["prompt_json_path"] = prompt_json_path
         toml_params["reg_path"] = args.reg_dir
@@ -236,7 +241,6 @@ def main():
         #生成bat配置
         batch_path = f'{base_train_path}.bat'
         
-        batch_size = globals()[f"{training_type.lower()}_batch_size"]
             
         bat_config = base_batch_config
         if training_type == "LoRA":
@@ -318,7 +322,11 @@ def main():
                 bat_params["output_name"] = f"{lora_count}_{base_output_name}"
                 
                 temp_bat_config = bat_config.format_map(bat_params)
-                new_bat_config = f"""{temp_bat_config} --network_weights {model_output_dir}/{lora_count-1}_{base_output_name}.{save_model_as}"""
+                count = lora_count-1
+                if count >= 0:
+                    new_bat_config = f"""{temp_bat_config} --network_weights {model_output_dir}/{lora_count-1}_{base_output_name}.{save_model_as}"""
+                else:
+                    new_bat_config = f"""{temp_bat_config}"""
                 lora_count += 1
                 style_up_lr_weight_base[index] = 0.01
                 
