@@ -54,15 +54,6 @@ lora_train_step					=	config.get('DEFAULT', 'lora_train_step')
 lora_network_dim				=	config.get('DEFAULT', 'lora_network_dim')
 lora_conv_dim					=	config.get('DEFAULT', 'lora_conv_dim')
 lora_resolution					=	config.get('DEFAULT', 'lora_resolution')
-	
-lycoris_unet_lr					=	config.get('DEFAULT', 'lycoris_unet_lr')
-lycoris_text_encoder_lr			=	config.get('DEFAULT', 'lycoris_text_encoder_lr')
-lycoris_prior_loss_weight		=	config.get('DEFAULT', 'lycoris_prior_loss_weight')
-lycoris_batch_size				=	config.get('DEFAULT', 'lycoris_batch_size')
-lycoris_train_step				=	config.get('DEFAULT', 'lycoris_train_step')
-lycoris_network_dim				=	config.get('DEFAULT', 'lycoris_network_dim')
-lycoris_conv_dim				=	config.get('DEFAULT', 'lycoris_conv_dim')
-lycoris_resolution				=	config.get('DEFAULT', 'lycoris_resolution')
 
 def create_folder_structure(dataset_root_path, dataset_path, folder_name):
     target_folder = Path(dataset_root_path) / folder_name
@@ -212,7 +203,7 @@ def main():
     merge_captions(image_path, prompt_json_path)
     
     #训练配置生成
-    training_types = ["DreamBooth", "FineTune", "LoRA", "LyCORIS"]
+    training_types = ["DreamBooth", "FineTune", "LoRA"]
 
     for training_type in training_types:
         base_train_path = f'{base_path}/{folder_name}_{image_name}_{training_type}'
@@ -224,10 +215,10 @@ def main():
         toml_params = {} 
         toml_params["resolution"] = globals()[f"{training_type.lower()}_resolution"]
         batch_size = int(globals()[f"{training_type.lower()}_batch_size"])
-        if num_images > 200:
-            batch_size = int(batch_size * (num_images / 200))
-        if batch_size >= 32:
-            batch_size = 32
+        #if num_images > 200:
+        #    batch_size = int(batch_size * (num_images / 200))
+        #if batch_size >= 32:
+        #    batch_size = 32
         toml_params["batch_size"] = batch_size
         toml_params["image_path"] = image_path
         toml_params["prompt_json_path"] = prompt_json_path
@@ -246,10 +237,6 @@ def main():
         if training_type == "LoRA":
             train_script = "train_network"
             network_module = "networks.lora"
-            bat_config += lora_batch_config
-        elif training_type == "LyCORIS":
-            train_script = "train_network"
-            network_module = "lycoris.kohya"
             bat_config += lora_batch_config
         elif training_type == "FineTune":
             train_script = "fine_tune"
@@ -290,7 +277,7 @@ def main():
         if training_type == "DreamBooth":
             bat_params["prior_loss_weight"] = dreambooth_prior_loss_weight
         #添加LoRA参数
-        use_lora = training_type == "LoRA" or training_type == "LyCORIS"
+        use_lora = training_type == "LoRA"
         if use_lora:
             lora_count = 0
             bat_config +=  f"""--cache_latents """
@@ -311,7 +298,7 @@ def main():
                 bat_params["up_lr_weight"] = style_up_lr_weight
             
             bat_config_list = ""
-            style_up_lr_weight_base = [0.0]*12
+            style_up_lr_weight_base = [0.0001]*12
 
             for index in range(3, 12):  # index 3 to 11
                 output_layer = style_up_lr_weight_base.copy()
@@ -328,7 +315,6 @@ def main():
                 else:
                     new_bat_config = f"""{temp_bat_config}"""
                 lora_count += 1
-                style_up_lr_weight_base[index] = 0.01
                 
                 bat_config_list += new_bat_config
 
