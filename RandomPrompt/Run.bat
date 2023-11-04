@@ -1,0 +1,1 @@
+gen.py -count 1000 -l 10 > prompt.txt
