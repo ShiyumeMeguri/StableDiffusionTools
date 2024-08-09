@@ -14,7 +14,7 @@ def load_model(path: Path, device: str) -> dict[str, torch.Tensor]:
         return ckpt.get("state_dict", ckpt)
 
 def print_layer_info(model: dict[str, torch.Tensor], directory: Path, model_filename: str):
-    info_path = directory / f"{model_filename}ModelInfo.txt"
+    info_path = directory / f"{model_filename}_ModelInfo.txt"
     max_name_length = max(len(name) for name in model.keys())
     header_format = f"{{:<{max_name_length + 10}}} {{:<20}} {{:>10}} {{:<30}}\n"
     row_format = f"{{:<{max_name_length + 10}}} {{:<20}} {{:10.3f}} {{:<30}}\n"
