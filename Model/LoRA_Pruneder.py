@@ -56,7 +56,8 @@ BLOCKS=["encoder",
 "diffusion_model_output_blocks_8_",
 "diffusion_model_output_blocks_9_",
 "diffusion_model_output_blocks_10_",
-"diffusion_model_output_blocks_11_"]
+"diffusion_model_output_blocks_11_",
+"embedders"]
 
 def save_state_dict(state: dict[str, Any], path: str, format: Literal["ckpt", "safetensors"]) -> None:
     if format == "ckpt":
@@ -170,14 +171,16 @@ def expand_ratios(ratios: list[float]) -> list[float]:
     else:
         raise ValueError("权重长度错误.")
 
-def filter_layers(state_dict: dict[str, torch.Tensor], lwei: list[float]) -> dict[str, torch.Tensor]:
+def filter_layers(lora: dict[str, torch.Tensor], lwei: list[float]) -> dict[str, torch.Tensor]:
     filtered_state_dict = {}
-    for layer_name, weight in state_dict.items():
+    for layer_name, weight in lora.items():
         fullkey = convert_diffusers_name_to_compvis(layer_name)
         key, lora_key = fullkey.split(".", 1)
         for i,block in enumerate(BLOCKS):
             if block in key:
-                ratio = lwei[i]
+                if i == 26:
+                    i = 0
+                ratio = lwei[i] 
                 if ratio != 0:
                     filtered_state_dict[layer_name] = weight * math.sqrt(abs(ratio))
     return filtered_state_dict

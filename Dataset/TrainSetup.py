@@ -106,7 +106,7 @@ def merge_captions(image_path, prompt_json_path):
     # 检查文件是否存在，如果存在则删除
     if os.path.exists(prompt_json_path):
         os.remove(prompt_json_path)
-        
+    print(f'{sd_scripts_path}finetune/merge_captions_to_metadata.py --caption_extension=.txt --full_path "{image_path}" {prompt_json_path}')
     subprocess.run(f'{sd_scripts_path}finetune/merge_captions_to_metadata.py --caption_extension=.txt --full_path "{image_path}" {prompt_json_path}', shell=True)
 
 def create_config(path, params, data):
@@ -178,7 +178,6 @@ base_batch_config = """
 finetune_batch_config = """--learning_rate={lr} """
 
 dreambooth_batch_config = """--learning_rate={lr} --prior_loss_weight={prior_loss_weight} """
-
 lora_batch_config = """--unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "down_lr_weight={down_lr_weight}" "up_lr_weight={up_lr_weight}" "mid_lr_weight={mid_lr_weight}" "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" --network_train_unet_only --persistent_data_loader_workers --prior_loss_weight={prior_loss_weight} """
 
 def main():
@@ -247,7 +246,7 @@ def main():
             bat_config +=  f"""--color_aug --random_crop """
             
         if not args.chara:
-            bat_config += f"""--flip_aug """ # --face_crop_aug_range 1.0,3.0 --optimizer_args weight_decay={weight_decay} betas=.9,.999 --color_aug --random_crop 
+            bat_config += f"""--flip_aug --random_crop """ # --face_crop_aug_range 1.0,3.0 --optimizer_args weight_decay={weight_decay} betas=.9,.999 --color_aug 
         if args.noise_offset:
             bat_config += f"""--noise_offset {args.noise_offset} """
         
@@ -280,7 +279,6 @@ def main():
         use_lora = training_type == "LoRA"
         if use_lora:
             lora_count = 0
-            bat_config +=  f"""--cache_latents """
             bat_params["output_name"] = f"{lora_count}_{base_output_name}"
             bat_params["unet_lr"] = globals()[f"{training_type.lower()}_unet_lr"]
             bat_params["text_encoder_lr"] = globals()[f"{training_type.lower()}_text_encoder_lr"]
@@ -297,29 +295,29 @@ def main():
                 bat_params["mid_lr_weight"] = style_mid_lr_weight
                 bat_params["up_lr_weight"] = style_up_lr_weight
             
-            bat_config_list = ""
-            style_up_lr_weight_base = [0.0001]*12
-
-            for index in range(3, 12):  # index 3 to 11
-                output_layer = style_up_lr_weight_base.copy()
-                output_layer[index] = 1.0
-                output_layer = ",".join(str(x) for x in output_layer)
-                
-                bat_params["up_lr_weight"] = output_layer  
-                bat_params["output_name"] = f"{lora_count}_{base_output_name}"
-                
-                temp_bat_config = bat_config.format_map(bat_params)
-                count = lora_count-1
-                if count >= 0:
-                    new_bat_config = f"""{temp_bat_config} --network_weights {model_output_dir}/{lora_count-1}_{base_output_name}.{save_model_as}"""
-                else:
-                    new_bat_config = f"""{temp_bat_config}"""
-                lora_count += 1
-                
-                bat_config_list += new_bat_config
-
-            # Join all the bat_configs
-            bat_config = bat_config_list
+            #bat_config_list = ""
+            #style_up_lr_weight_base = [0.0001]*12
+            #
+            #for index in range(3, 12):  # index 3 to 11
+            #    output_layer = style_up_lr_weight_base.copy()
+            #    output_layer[index] = 1.0
+            #    output_layer = ",".join(str(x) for x in output_layer)
+            #    
+            #    bat_params["up_lr_weight"] = output_layer  
+            #    bat_params["output_name"] = f"{lora_count}_{base_output_name}"
+            #    
+            #    temp_bat_config = bat_config.format_map(bat_params)
+            #    count = lora_count-1
+            #    if count >= 0:
+            #        new_bat_config = f"""{temp_bat_config} --network_weights {model_output_dir}/{lora_count-1}_{base_output_name}.{save_model_as}"""
+            #    else:
+            #        new_bat_config = f"""{temp_bat_config}"""
+            #    lora_count += 1
+            #    
+            #    bat_config_list += new_bat_config
+            #
+            ## Join all the bat_configs
+            #bat_config = bat_config_list
 
         create_config(batch_path, bat_params, bat_config)
         

@@ -317,7 +317,7 @@ def resize(args):
   metadata["legacy_hash"] = legacy_hash
 
   print(f"saving model to: {args.save_to}")
-  save_to_file(args.save_to + ".safetensors", state_dict, state_dict, save_dtype, metadata)
+  save_to_file(args.save_to + ".ckpt", state_dict, state_dict, save_dtype, metadata)
 
 
 def setup_parser() -> argparse.ArgumentParser:

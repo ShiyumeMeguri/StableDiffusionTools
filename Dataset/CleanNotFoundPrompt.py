@@ -22,6 +22,7 @@ def find_and_move_txt_without_img(folder_path):
                     # Move file to the recycle bin
                     try:
                         send2trash.send2trash(txt_path) # Use the full file path
+                        send2trash.send2trash(txt_name_without_ext + ".npz") # Use the full file path
                         print(f'Moved {file} to the recycle bin')
                     except Exception as e:
                         print(f'Failed to move {file} to the recycle bin:', str(e))
