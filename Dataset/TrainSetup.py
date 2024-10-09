@@ -127,7 +127,7 @@ batch_size = {batch_size}
 
 dreambooth_toml_config = """[general]
 enable_bucket = true
-shuffle_caption = false
+shuffle_caption = true
 keep_tokens = 1
 
 [[datasets]]
@@ -151,7 +151,7 @@ base_batch_config = """
 finetune_batch_config = """--learning_rate={lr} """
 
 dreambooth_batch_config = """--learning_rate={lr} """
-lora_batch_config = """--unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "down_lr_weight={down_lr_weight}" "up_lr_weight={up_lr_weight}" "mid_lr_weight={mid_lr_weight}" "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" --network_train_unet_only --persistent_data_loader_workers --prior_loss_weight={prior_loss_weight} """
+lora_batch_config = """--unet_lr={unet_lr} --network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" --network_train_unet_only --persistent_data_loader_workers --prior_loss_weight={prior_loss_weight} """
 
 def main():
     dataset_path = Path(args.path)
@@ -202,13 +202,13 @@ def main():
             
         bat_config = base_batch_config
         if training_type == "LoRA":
-            train_script = "train_network"
+            train_script = "sdxl_train_network"
             network_module = "networks.lora"
             bat_config += lora_batch_config
         elif training_type == "FineTune":
             train_script = "fine_tune"
             bat_config += finetune_batch_config
-            bat_config +=  f"""--stop_text_encoder_training 0 --cache_text_encoder_outputs"""
+            bat_config +=  f"""--stop_text_encoder_training 0"""
         elif training_type == "DreamBooth":
             train_script = "sdxl_train"
             bat_config += dreambooth_batch_config
@@ -252,14 +252,14 @@ def main():
             bat_params["network_dim"] = globals()[f"{training_type.lower()}_network_dim"]
             bat_params["conv_dim"] = globals()[f"{training_type.lower()}_conv_dim"]
             bat_params["network_module"] = network_module
-            if args.chara:
-                bat_params["down_lr_weight"] = chara_down_lr_weight
-                bat_params["mid_lr_weight"] = chara_mid_lr_weight
-                bat_params["up_lr_weight"] = chara_up_lr_weight
-            else:
-                bat_params["down_lr_weight"] = style_down_lr_weight
-                bat_params["mid_lr_weight"] = style_mid_lr_weight
-                bat_params["up_lr_weight"] = style_up_lr_weight
+            #if args.chara:
+            #    bat_params["down_lr_weight"] = chara_down_lr_weight
+            #    bat_params["mid_lr_weight"] = chara_mid_lr_weight
+            #    bat_params["up_lr_weight"] = chara_up_lr_weight
+            #else:
+            #    bat_params["down_lr_weight"] = style_down_lr_weight
+            #    bat_params["mid_lr_weight"] = style_mid_lr_weight
+            #    bat_params["up_lr_weight"] = style_up_lr_weight
             
             #bat_config_list = ""
             #style_up_lr_weight_base = [0.0001]*12
