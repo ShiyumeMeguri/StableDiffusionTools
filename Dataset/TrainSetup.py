@@ -36,7 +36,6 @@ dreambooth_lr					=	config.get('DEFAULT', 'dreambooth_lr')
 dreambooth_batch_size			=	config.get('DEFAULT', 'dreambooth_batch_size')
 dreambooth_train_step			=	config.get('DEFAULT', 'dreambooth_train_step')
 dreambooth_resolution			=	config.get('DEFAULT', 'dreambooth_resolution')
-dreambooth_prior_loss_weight	=	config.get('DEFAULT', 'dreambooth_prior_loss_weight')
 	
 chara_down_lr_weight			=	config.get('DEFAULT', 'chara_down_lr_weight')
 chara_mid_lr_weight		    	=	config.get('DEFAULT', 'chara_mid_lr_weight')
@@ -66,42 +65,16 @@ def create_folder_structure(dataset_root_path, dataset_path, folder_name):
     shutil.move(str(dataset_path), str(image_path))
 
     return image_path
-  
-def flip_images(image_path):
-    for file in os.listdir(image_path):
-        if file.endswith(".jpg") or file.endswith(".png") or file.endswith(".bmp"):
-            img = Image.open(os.path.join(image_path, file)).convert("RGB")
-            flipped_img = img.transpose(Image.FLIP_LEFT_RIGHT)
-            flipped_img.save(os.path.join(image_path, os.path.splitext(file)[0] + "_flip.jpg"), quality=90)
-
-            # 查找同名的文本文件
-            txt_file = os.path.splitext(file)[0] + ".txt"
-            txt_path = os.path.join(image_path, txt_file)
-            if os.path.isfile(txt_path):
-                # 如果存在同名的文本文件，则复制一份到翻转后的图片的同一目录下
-                flipped_txt_path = os.path.join(image_path, os.path.splitext(file)[0] + "_flip.txt")
-                with open(txt_path, "r") as f_in, open(flipped_txt_path, "w") as f_out:
-                    f_out.write(f_in.read())
-    print("翻转图片完成.")
     
 def run_scripts(image_path):
     txt_files = glob.glob(os.path.join(image_path, '*.txt'))
     
     if not txt_files:
         print('找不到txt文件, 使用AI生成prompt')
-        subprocess.run(f'{sd_scripts_path}finetune/tag_images_by_wd14_tagger.py "{image_path}" --batch 4', shell=True)
+        subprocess.run(f'{sd_scripts_path}finetune/tag_images_by_wd14_tagger.py --batch_size 1 --caption_extension .txt --caption_separator ,  --debug --frequency_tags --max_data_loader_n_workers 2 --onnx --remove_underscore --repo_id SmilingWolf/wd-v1-4-convnextv2-tagger-v2 "{image_path}"', shell=True)
     else:
         print('找到txt文件, 跳过 tag_images_by_wd14_tagger.py')
 
-def data_augmentation(image_path):
-    has_flipped_images = any('_flip' in f for f in os.listdir(image_path))
-    if has_flipped_images:
-        print('文件夹已包含_flipped结尾的图片，跳过数据增强')
-    else:
-        flip_images(image_path)
-        return True
-    return False
-    
 def merge_captions(image_path, prompt_json_path):
     # 检查文件是否存在，如果存在则删除
     if os.path.exists(prompt_json_path):
@@ -154,7 +127,7 @@ batch_size = {batch_size}
 
 dreambooth_toml_config = """[general]
 enable_bucket = true
-shuffle_caption = true
+shuffle_caption = false
 keep_tokens = 1
 
 [[datasets]]
@@ -177,7 +150,7 @@ base_batch_config = """
 #--cache_latents 恢复 为了更多的batch
 finetune_batch_config = """--learning_rate={lr} """
 
-dreambooth_batch_config = """--learning_rate={lr} --prior_loss_weight={prior_loss_weight} """
+dreambooth_batch_config = """--learning_rate={lr} """
 lora_batch_config = """--unet_lr={unet_lr} --text_encoder_lr={text_encoder_lr} --network_module={network_module} --network_dim {network_dim} --network_alpha 1 --network_args "down_lr_weight={down_lr_weight}" "up_lr_weight={up_lr_weight}" "mid_lr_weight={mid_lr_weight}" "conv_dim={conv_dim}" "conv_alpha=1" "algo=lora" --network_train_unet_only --persistent_data_loader_workers --prior_loss_weight={prior_loss_weight} """
 
 def main():
@@ -189,11 +162,6 @@ def main():
     num_images = len([f for f in os.listdir(image_path) if os.path.isfile(os.path.join(image_path, f)) and f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))])
     
     run_scripts(image_path)
-    
-    #if not args.chara:
-    #    flipped_images = data_augmentation(image_path)
-    #    if flipped_images:
-    #        num_images *= 2
     
     image_name = image_path.name
     # tag合并
@@ -240,13 +208,13 @@ def main():
         elif training_type == "FineTune":
             train_script = "fine_tune"
             bat_config += finetune_batch_config
+            bat_config +=  f"""--stop_text_encoder_training 0 --cache_text_encoder_outputs"""
         elif training_type == "DreamBooth":
-            train_script = "train_db"
+            train_script = "sdxl_train"
             bat_config += dreambooth_batch_config
-            bat_config +=  f"""--color_aug --random_crop """
             
         if not args.chara:
-            bat_config += f"""--flip_aug --random_crop """ # --face_crop_aug_range 1.0,3.0 --optimizer_args weight_decay={weight_decay} betas=.9,.999 --color_aug 
+            bat_config += f"""--flip_aug""" # --face_crop_aug_range 1.0,3.0 --optimizer_args weight_decay={weight_decay} betas=.9,.999 --color_aug 
         if args.noise_offset:
             bat_config += f"""--noise_offset {args.noise_offset} """
         
@@ -273,8 +241,6 @@ def main():
         bat_params["train_step"] = base_train_step
         bat_params["lr"] = lr
         bat_params["save_every_n_epochs"] = math.ceil(16 / (num_images / 16))
-        if training_type == "DreamBooth":
-            bat_params["prior_loss_weight"] = dreambooth_prior_loss_weight
         #添加LoRA参数
         use_lora = training_type == "LoRA"
         if use_lora:
