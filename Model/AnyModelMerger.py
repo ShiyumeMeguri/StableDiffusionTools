@@ -43,10 +43,10 @@ def process_layers(state_dict: dict[str, torch.Tensor], state_dict_B: dict[str, 
     for layer_name, weight in state_dict.items():
         if layer_name in config_dict:
             ratio = config_dict[layer_name]
-            if state_dict_B:
+            if state_dict_B and layer_name in state_dict_B:
                 merged_state_dict[layer_name] = (weight * (1 - ratio) + state_dict_B[layer_name] * ratio)
             else:
-                merged_state_dict[layer_name] = weight * ratio
+                merged_state_dict[layer_name] = weight * (1 - ratio)
 
     return merged_state_dict
 
