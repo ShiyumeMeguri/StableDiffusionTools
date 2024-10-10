@@ -38,13 +38,12 @@ def main(input: str, inputB: str):
     total_diff_size = 0.0
     for layer_name, tensor in input_model.items():
         if layer_name in inputB_model:
-            # Calculating ratio
+            # Calculating the proportion of different weights
             tensor = tensor.float()
             tensorB = inputB_model[layer_name].float()
-            diff = torch.abs(tensor - tensorB)
-            mean_diff = torch.mean(diff)
-            meanA = torch.mean(torch.abs(tensor))
-            diff_ratio = mean_diff / meanA if meanA != 0 else 0
+            is_close = torch.isclose(tensor, tensorB, rtol=1e-05, atol=1e-08)
+            num_different = torch.numel(tensor) - is_close.sum().item()
+            diff_ratio = num_different / torch.numel(tensor)
             diff_size = diff_ratio * tensor_size_mb(tensor)
             total_diff_size += diff_size
             diff_ratios[layer_name] = diff_ratio
@@ -60,8 +59,8 @@ def main(input: str, inputB: str):
             diff_size = diff_sizes[layer_name]
             tensor_shape = tensor_shapes[layer_name]
             f.write('{:<10}{:<30}{:<30}{:<50}\n'.format(
-                f"{diff_ratio:.3%}".zfill(7), 
-                f"Diff Size: {diff_size:.3f} MB", 
+                f"{diff_ratio * 100:.3f}%".zfill(7),
+                f"Diff Size: {diff_size:.3f} MB",
                 f"Shape: {tensor_shape}",
                 f"{layer_name}::1.0"
             ))
@@ -80,4 +79,3 @@ if __name__ == "__main__":
         exit()
 
     main(args.input, args.inputB)
-
