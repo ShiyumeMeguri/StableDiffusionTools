@@ -39,11 +39,11 @@ def calculate_weights(weight_A: torch.Tensor, weight_B: torch.Tensor, ratio: flo
 
 # 处理层的方法，支持不同的计算方式
 def process_layers(
-    state_dict_A: Dict[str, torch.Tensor], 
-    state_dict_B: Dict[str, torch.Tensor], 
-    config_dict: Dict[str, float], 
+    state_dict_A: dict[str, torch.Tensor], 
+    state_dict_B: dict[str, torch.Tensor], 
+    config_dict: dict[str, float], 
     mode: str = "linear_combination"  # 默认的计算模式是线性组合
-) -> Dict[str, torch.Tensor]:
+) -> dict[str, torch.Tensor]:
     merged_state_dict = {}
 
     for layer_name, weight_A in state_dict_A.items():
