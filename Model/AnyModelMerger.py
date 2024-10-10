@@ -59,7 +59,8 @@ def load_config(config_path: str) -> dict[str, float]:
                 if line.startswith("#"):
                     continue
                 if line.startswith("-"):
-                    print(f"已删除 {line} 层.")
+                    layer_name, ratio = line.split("::")
+                    print(f"已删除 {layer_name} 层")
                     continue
                 if line:
                     layer_name, ratio = line.split("::")
