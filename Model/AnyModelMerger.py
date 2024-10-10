@@ -96,7 +96,10 @@ def main():
 
     # 如果没有提供输出路径，则使用input的路径加"merged"后缀，并默认保存为.ckpt格式
     if not output_path:
-        output_path = input_path.with_name(f"{input_path.stem}_merged.ckpt")
+        if model_path:
+            output_path = input_path.with_name(f"{input_path.stem}+{model_path.stem}_merged.ckpt")
+        else:
+            output_path = input_path.with_name(f"{input_path.stem}_merged.ckpt")
     elif not output_path.endswith(".safetensors") and not output_path.endswith(".ckpt"):
         output_path += ".ckpt"
 
