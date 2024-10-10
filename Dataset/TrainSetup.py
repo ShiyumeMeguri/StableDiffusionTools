@@ -113,7 +113,7 @@ def process_chara_json_file(file_path, tags):
     
 finetune_toml_config = """[general]
 enable_bucket = true
-shuffle_caption = true
+shuffle_caption = false
 keep_tokens = 1
 
 [[datasets]]
@@ -127,7 +127,7 @@ batch_size = {batch_size}
 
 dreambooth_toml_config = """[general]
 enable_bucket = true
-shuffle_caption = true
+shuffle_caption = false
 keep_tokens = 1
 
 [[datasets]]
@@ -214,7 +214,7 @@ def main():
             bat_config += dreambooth_batch_config
             
         if not args.chara:
-            bat_config += f"""--flip_aug""" # --face_crop_aug_range 1.0,3.0 --optimizer_args weight_decay={weight_decay} betas=.9,.999 --color_aug 
+            bat_config += f"""--cache_text_encoder_outputs --flip_aug""" # --face_crop_aug_range 1.0,3.0 --optimizer_args weight_decay={weight_decay} betas=.9,.999 --color_aug 
         if args.noise_offset:
             bat_config += f"""--noise_offset {args.noise_offset} """
         
