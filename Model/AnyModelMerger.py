@@ -43,10 +43,6 @@ def process_layers(state_dict: dict[str, torch.Tensor], state_dict_B: dict[str, 
     for layer_name, weight in state_dict.items():
         if layer_name in config_dict:
             ratio = config_dict[layer_name]
-            # 检测是否删除这一层
-            if layer_name.startswith("-"):
-                print(f"已删除 {layer_name} 层.")
-                continue
 
             # 如果state_dict_B存在，则合并
             if state_dict_B:
@@ -62,7 +58,12 @@ def load_config(config_path: str) -> dict[str, float]:
         with open(config_path, "r") as config_file:
             for line in config_file:
                 line = line.strip()
-                if line and not line.startswith("#"):
+                if line.startswith("#"):
+                    continue
+                if line.startswith("-"):
+                    print(f"已删除 {line} 层.")
+                    continue
+                if line:
                     layer_name, ratio = line.split("::")
                     ratio = float(ratio)
                     config_dict[layer_name] = ratio
