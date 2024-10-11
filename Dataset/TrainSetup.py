@@ -36,14 +36,6 @@ dreambooth_lr					=	config.get('DEFAULT', 'dreambooth_lr')
 dreambooth_batch_size			=	config.get('DEFAULT', 'dreambooth_batch_size')
 dreambooth_train_step			=	config.get('DEFAULT', 'dreambooth_train_step')
 dreambooth_resolution			=	config.get('DEFAULT', 'dreambooth_resolution')
-	
-chara_down_lr_weight			=	config.get('DEFAULT', 'chara_down_lr_weight')
-chara_mid_lr_weight		    	=	config.get('DEFAULT', 'chara_mid_lr_weight')
-chara_up_lr_weight				=	config.get('DEFAULT', 'chara_up_lr_weight')
-
-style_down_lr_weight			=	config.get('DEFAULT', 'style_down_lr_weight')
-style_mid_lr_weight			    =	config.get('DEFAULT', 'style_mid_lr_weight')
-style_up_lr_weight				=	config.get('DEFAULT', 'style_up_lr_weight')
 
 lora_unet_lr					=	config.get('DEFAULT', 'lora_unet_lr')
 lora_text_encoder_lr			=	config.get('DEFAULT', 'lora_text_encoder_lr')
@@ -252,38 +244,6 @@ def main():
             bat_params["network_dim"] = globals()[f"{training_type.lower()}_network_dim"]
             bat_params["conv_dim"] = globals()[f"{training_type.lower()}_conv_dim"]
             bat_params["network_module"] = network_module
-            #if args.chara:
-            #    bat_params["down_lr_weight"] = chara_down_lr_weight
-            #    bat_params["mid_lr_weight"] = chara_mid_lr_weight
-            #    bat_params["up_lr_weight"] = chara_up_lr_weight
-            #else:
-            #    bat_params["down_lr_weight"] = style_down_lr_weight
-            #    bat_params["mid_lr_weight"] = style_mid_lr_weight
-            #    bat_params["up_lr_weight"] = style_up_lr_weight
-            
-            #bat_config_list = ""
-            #style_up_lr_weight_base = [0.0001]*12
-            #
-            #for index in range(3, 12):  # index 3 to 11
-            #    output_layer = style_up_lr_weight_base.copy()
-            #    output_layer[index] = 1.0
-            #    output_layer = ",".join(str(x) for x in output_layer)
-            #    
-            #    bat_params["up_lr_weight"] = output_layer  
-            #    bat_params["output_name"] = f"{lora_count}_{base_output_name}"
-            #    
-            #    temp_bat_config = bat_config.format_map(bat_params)
-            #    count = lora_count-1
-            #    if count >= 0:
-            #        new_bat_config = f"""{temp_bat_config} --network_weights {model_output_dir}/{lora_count-1}_{base_output_name}.{save_model_as}"""
-            #    else:
-            #        new_bat_config = f"""{temp_bat_config}"""
-            #    lora_count += 1
-            #    
-            #    bat_config_list += new_bat_config
-            #
-            ## Join all the bat_configs
-            #bat_config = bat_config_list
 
         create_config(batch_path, bat_params, bat_config)
         
