@@ -131,7 +131,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("input", type=str, help="Path to input file. Must be a .safetensors or .ckpt file.")
 parser.add_argument("config", type=str, nargs='?', help="Path to configuration file. If not provided, model layers will be printed.")
 parser.add_argument("--output", "-o", type=str, help="Path to output file. If not provided, defaults to input+merged.ckpt.")
-parser.add_argument("--model", "-sd", type=str, help="Path to model file. Must be a .safetensors or .ckpt file.")
+parser.add_argument("--model", type=str, help="Path to model file. Must be a .safetensors or .ckpt file.")
 parser.add_argument("--mode", type=str, default="linear_combination", help="Mode of weight calculation: 'linear_combination', 'replace', etc.")  # 新增的 mode 参数
 args = parser.parse_args()
 
