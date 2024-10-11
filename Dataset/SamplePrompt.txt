@@ -1,5 +1,0 @@
-# prompt 1
-loli solo flat chest (1girl:1) flower hair ornament white long hair lime green eyes blouse white knit sweater v-neck red bow standing in bamboo marijuana weed fruit apple white flower by mignon reoen [shion::0.6], steam diselpunk, cowboy shot, cinematic lighting --n low quality --w 512 --h 768 --d 1816702855 --l 7 --s 20
-
-# prompt 4
-fractal, cute --n low quality --w 512 --h 768 --d 130 --l 7 --s 20
