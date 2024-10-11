@@ -112,7 +112,7 @@
             // 更新localStorage中的已下载图片集合
             localStorage.setItem('downloadedImages', JSON.stringify([...downloadedImages]));
 
-            inputElement.value = "A high-quality, fullbody figurine,  It shows an anime beautiful girl with side ponytail in a fantastical aquarium greenhouse setting, lolita incorporate fractal crystal design, in sapphire and white tones.Wearing white stockings and boots, The artwork is infused with a psychedelic, dreamlike quality, resembling the work of a skilled anime illustrator, vibrant in color and rich in detail. avoiding the oversimplified chibi style.";//generateArtPrompt(inputElement);
+            inputElement.value = generateArtPrompt(inputElement);
 
             var clickButton = document.querySelector("#create_btn_c");
             if (clickButton) {
@@ -131,9 +131,9 @@
         // 定义颜色和场景选项
         const colors = [
             "blue", // 原有颜色
-            //"red", // 原有颜色
-            //"green", // 原有颜色
-            //"lavender", // 薰衣草色
+            "red", // 原有颜色
+            "green", // 原有颜色
+            "lavender", // 薰衣草色
         ];
         const scenes = [
 
@@ -229,7 +229,7 @@
 
         //var basePrompt = "A mesmerizing anime-style wallpaper illustration, A 2D fractal anime girl with [color] hair and blue highlights game cg, an ice mage with white stockings and boots, in [scene], adorned with fractal flowers and fractal feathers and crystal, embodying a magical and surreal aesthetic.";
         //var basePrompt = "A vibrant anime-style illustration with a focus on natural [color] hues, depicting a cute fractal cloths design, haired girl in a aquarium greenhouse-like fantasy setting. The art is reminiscent of professional anime illustrators, rich in color and detail, infused with psychedelic, dreamlike elements."; //我全都要
-        var basePrompt = "A vibrant anime-style illustration with a focus on natural [color] hues, depicting a cute, haired girl in a aquarium greenhouse-like fantasy setting. The art is reminiscent of professional anime illustrators, rich in color and detail, infused with psychedelic, dreamlike elements."; //水族馆版
+        var basePrompt = "A high-quality full-body figurine of an anime girl with a side ponytail, standing in a [scene] environment. The character is designed in a Lolita style, merged with fractal crystal elements, featuring [color] transparent gemstones and white tones. She wears white stockings and boots. The artwork exudes a psychedelic, dreamlike quality, resembling the work of a skilled anime illustrator, with vibrant colors and rich details. The style avoids overly simplified Chibi aesthetics.";
         //var basePrompt = "A vibrant anime-style illustration with a focus on natural [color] hues, depicting a cute fractal cloths design, haired girl in a greenhouse-like fantasy setting. The art is reminiscent of professional anime illustrators, rich in color and detail, infused with psychedelic, dreamlike elements."; //分形版
         //var basePrompt = "An anime-style girl wallpaper illustration, [scene]. Her outfit and hair are infused with fractal patterns, blending the intricacies of mathematical models with anime design. The environment around her pulsates with life, embodying a fusion of natural and digital realms through fractal art. This illustration captures the essence of beauty born from the fusion of fractal art and anime culture, showcasing the possibilities when these two worlds collide.";
         // 从数组中随机选择颜色和场景
