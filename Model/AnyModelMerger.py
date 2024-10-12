@@ -49,8 +49,9 @@ def process_layers(
     for layer_name, weight_A in state_dict_A.items():
         if layer_name in config_dict:
             ratio = config_dict[layer_name]
-            if state_dict_B and layer_name in state_dict_B:
-                weight_B = state_dict_B[layer_name]
+            layer_name_without_model = layer_name#.replace('model.', '', 1)
+            if state_dict_B and layer_name_without_model in state_dict_B:
+                weight_B = state_dict_B[layer_name_without_model]
                 merged_state_dict[layer_name] = calculate_weights(weight_A, weight_B, ratio, mode)
             else:
                 if ratio != 0.0:
