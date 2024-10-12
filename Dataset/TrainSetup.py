@@ -138,7 +138,7 @@ batch_size = {batch_size}
 """
 #训练通用配置
 base_batch_config = """
-{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --mixed_precision=fp16 --full_fp16 --gradient_checkpointing --save_every_n_epochs={save_every_n_epochs} --lr_scheduler="{lr_scheduler}" --seed 1234 """# --sample_prompts {sample_prompts} --sample_sampler ddim --sample_every_n_epochs {save_every_n_epochs} """
+{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type Lion8bit --xformers --mixed_precision=fp16 --full_fp16 --gradient_checkpointing --save_every_n_epochs={save_every_n_epochs} --lr_scheduler="{lr_scheduler}" --seed 1234 """# --sample_prompts {sample_prompts} --sample_sampler ddim --sample_every_n_epochs {save_every_n_epochs} """
 #--cache_latents 恢复 为了更多的batch
 finetune_batch_config = """--learning_rate={lr} """
 
