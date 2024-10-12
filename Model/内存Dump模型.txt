@@ -35,25 +35,22 @@ stable-diffusion-webui-forge\backend\diffusion_engine\base.py
         case 3:  # memory dump
             model_var = model_selection
             if model_var == 'forge_objects':
-                if model_info := sd_models.checkpoints_list.get(model_name, None):
-                    from modules.paths import models_path
-                    long_filename = os.path.join(models_path, 'Stable-diffusion', model_info.filename)
-                    os.makedirs(os.path.dirname(long_filename), exist_ok=True)
-                    shared.sd_model.save_checkpoint(long_filename)
-                    return f"导出完成: {model_info.filename}"
+                from modules.paths import models_path
+                long_filename = os.path.join(models_path, 'Stable-diffusion', "forge_objects")
+                os.makedirs(os.path.dirname(long_filename), exist_ok=True)
+                shared.sd_model.save_checkpoint(long_filename)
+                return f"导出完成: {long_filename}"
             elif model_var == 'forge_objects_after_applying_lora':
-                if model_info := sd_models.checkpoints_list.get(model_name, None):
-                    from modules.paths import models_path
-                    long_filename = os.path.join(models_path, 'Stable-diffusion', model_info.filename)
-                    os.makedirs(os.path.dirname(long_filename), exist_ok=True)
-                    shared.sd_model.save_checkpoint_lora(long_filename)
-                    return f"导出完成: {model_info.filename}"
+                from modules.paths import models_path
+                long_filename = os.path.join(models_path, 'Stable-diffusion', "forge_objects_after_applying_lora")
+                os.makedirs(os.path.dirname(long_filename), exist_ok=True)
+                shared.sd_model.save_checkpoint_lora(long_filename)
+                return f"导出完成: {long_filename}"
             elif model_var == 'forge_objects_original':
-                if model_info := sd_models.checkpoints_list.get(model_name, None):
-                    from modules.paths import models_path
-                    long_filename = os.path.join(models_path, 'Stable-diffusion', model_info.filename)
-                    os.makedirs(os.path.dirname(long_filename), exist_ok=True)
-                    shared.sd_model.save_checkpoint_original(long_filename)
-                    return f"导出完成: {model_info.filename}"
+                from modules.paths import models_path
+                long_filename = os.path.join(models_path, 'Stable-diffusion', "forge_objects_original")
+                os.makedirs(os.path.dirname(long_filename), exist_ok=True)
+                shared.sd_model.save_checkpoint_original(long_filename)
+                return f"导出完成: {long_filename}"
             else:
                 return f"Error: unknown model selection {model_var}"
