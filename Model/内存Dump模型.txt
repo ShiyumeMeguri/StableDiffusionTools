@@ -54,3 +54,38 @@ stable-diffusion-webui-forge\backend\diffusion_engine\base.py
                 return f"导出完成: {long_filename}"
             else:
                 return f"Error: unknown model selection {model_var}"
+				
+				
+或
+        case 3:  # memory dump
+            model_var = model_selection
+            if model_var == 'forge_objects':
+                model = shared.sd_model.forge_objects
+            elif model_var == 'forge_objects_after_applying_lora':
+                model = shared.sd_model.forge_objects_after_applying_lora
+            elif model_var == 'forge_objects_original':
+                model = shared.sd_model.forge_objects_original
+            else:
+                return f"Error: unknown model selection {model_var}"
+
+            if model is None:
+                return f"Error: selected model '{model_var}' is None"
+
+            # Collect state_dicts from model components
+            state_dict = {}
+            try:
+                state_dict.update(model.clip.model.state_dict())
+            except AttributeError:
+                pass
+
+            try:
+                state_dict.update(model.unet.model.state_dict())
+            except AttributeError:
+                pass
+
+            try:
+                state_dict.update(model.vae.first_stage_model.state_dict())
+            except AttributeError:
+                pass
+
+            return do_convert(None, state_dict, *args)
