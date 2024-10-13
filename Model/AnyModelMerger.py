@@ -97,12 +97,7 @@ def calculate_weights(weight_A: torch.Tensor, weight_B: torch.Tensor, ratio: flo
             # Merge the weights
             merged_weight = weight_A + weight_diff_svd * ratio
             return merged_weight
-        else:
-            # If the difference is below the threshold, return the original weights
-            return weight_A
-    else:
-        # Default return original weights
-        return weight_A
+    return weight_A
 
 # 处理层的方法，支持不同的计算方式
 def process_layers(
@@ -200,7 +195,7 @@ parser.add_argument("input", type=str, help="Path to input file. Must be a .safe
 parser.add_argument("config", type=str, nargs='?', help="Path to configuration file. If not provided, model layers will be printed.")
 parser.add_argument("--output", "-o", type=str, help="Path to output file. If not provided, defaults to input+merged.ckpt.")
 parser.add_argument("--model", type=str, help="Path to model file. Must be a .safetensors or .ckpt file.")
-parser.add_argument("--mode", type=str, default="linear_combination", help="Mode of weight calculation: 'linear_combination', 'replace', etc.")  # 新增的 mode 参数
+parser.add_argument("--mode", type=str, default="linear_combination", help="Mode of weight calculation: 'linear_combination', 'replace', 'svd', etc.")  # 新增的 mode 参数
 args = parser.parse_args()
 
 if __name__ == "__main__":
