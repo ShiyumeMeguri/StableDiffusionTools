@@ -76,12 +76,12 @@ def calculate_weights(weight_A: torch.Tensor, weight_B: torch.Tensor, ratio: flo
             U_S = U @ torch.diag(S)
 
             # Clamp U_S and Vh
-            dist = torch.cat([U_S.flatten(), Vh.flatten()])
-            hi_val = torch.quantile(dist, clamp_quantile)
-            low_val = -hi_val
-            
-            U_S = U_S.clamp(low_val, hi_val)
-            Vh = Vh.clamp(low_val, hi_val)
+            #dist = torch.cat([U_S.flatten(), Vh.flatten()])
+            #hi_val = torch.quantile(dist, clamp_quantile)
+            #low_val = -hi_val
+            #
+            #U_S = U_S.clamp(low_val, hi_val)
+            #Vh = Vh.clamp(low_val, hi_val)
 
             # Reconstruct the approximated weight difference
             mat_approx = U_S @ Vh
