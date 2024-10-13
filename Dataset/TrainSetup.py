@@ -207,7 +207,7 @@ def main():
             bat_config += dreambooth_batch_config
             
         if not args.chara:
-            bat_config += f"""--cache_text_encoder_outputs --flip_aug --optimizer_args weight_decay={weight_decay} betas=0.9,0.95 --gradient_checkpointing --gradient_accumulation_steps=128 """ # --face_crop_aug_range 1.0,3.0 --color_aug 
+            bat_config += f"""--cache_text_encoder_outputs --flip_aug --optimizer_args weight_decay={weight_decay} betas=0.9,0.99 --gradient_checkpointing --gradient_accumulation_steps=128 """ # --face_crop_aug_range 1.0,3.0 --color_aug 
         if noise_offset:
             bat_config += f"""--noise_offset {noise_offset} """
         
