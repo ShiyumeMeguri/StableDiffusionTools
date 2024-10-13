@@ -26,6 +26,7 @@ sd_scripts_path					=	config.get('DEFAULT', 'sd_scripts_path')
 sample_prompts					=	config.get('DEFAULT', 'sample_prompts')
 
 weight_decay					=	config.get('DEFAULT', 'weight_decay')
+noise_offset					=	config.get('DEFAULT', 'noise_offset')
 	
 finetune_lr						=	config.get('DEFAULT', 'finetune_lr')
 finetune_batch_size				=	config.get('DEFAULT', 'finetune_batch_size')
@@ -206,9 +207,9 @@ def main():
             bat_config += dreambooth_batch_config
             
         if not args.chara:
-            bat_config += f"""--cache_text_encoder_outputs --flip_aug""" # --face_crop_aug_range 1.0,3.0 --optimizer_args weight_decay={weight_decay} betas=.9,.999 --color_aug 
-        if args.noise_offset:
-            bat_config += f"""--noise_offset {args.noise_offset} """
+            bat_config += f"""--cache_text_encoder_outputs --flip_aug --optimizer_args weight_decay={weight_decay} betas=0.9,0.95 --gradient_checkpointing --gradient_accumulation_steps=128 """ # --face_crop_aug_range 1.0,3.0 --color_aug 
+        if noise_offset:
+            bat_config += f"""--noise_offset {noise_offset} """
         
         lr = dreambooth_lr if training_type == "DreamBooth" else finetune_lr
         model_output_dir = f"{base_path}/model/{folder_name}_{image_name}"
@@ -253,7 +254,6 @@ parser.add_argument('path', type=str, help='the folder path to process')
 parser.add_argument('name', type=str, help='folder parent name')
 
 parser.add_argument('--chara', type=str, default='', help='chara prompt')
-parser.add_argument('--noise_offset', type=str, default='', help='noise offset')
 
 parser.add_argument('--reg_dir', type=str, default='', help='the folder path to process')
 parser.add_argument('--reg_tokens', type=str, default='', help='reg prompt')
