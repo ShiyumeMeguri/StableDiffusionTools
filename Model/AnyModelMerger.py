@@ -44,7 +44,7 @@ def calculate_weights(weight_A: torch.Tensor, weight_B: torch.Tensor, ratio: flo
         min_diff = kwargs.get('min_diff', 0.01)
         device = kwargs.get('device', "cpu")
 
-        weight_diff = weight_A - weight_B
+        weight_diff = weight_B - weight_A 
 
         # Only perform SVD if the maximum absolute difference exceeds the threshold
         if torch.max(torch.abs(weight_diff)) > min_diff:
@@ -95,7 +95,7 @@ def calculate_weights(weight_A: torch.Tensor, weight_B: torch.Tensor, ratio: flo
                 weight_diff_svd = mat_approx.view(original_shape)
 
             # Merge the weights
-            merged_weight = weight_B + weight_diff_svd * 1
+            merged_weight = weight_A + weight_diff_svd * ratio
             return merged_weight
         else:
             # If the difference is below the threshold, return the original weights
