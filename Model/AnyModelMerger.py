@@ -8,6 +8,7 @@ import tensorflow as tf
 import numpy as np
 import torch
 from PIL import Image
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 def save_state_dict(state: dict[str, Any], path: str, format: Literal["ckpt", "safetensors"]) -> None:
@@ -31,11 +32,77 @@ def load_model(path: Path, device: str) -> dict[str, torch.Tensor]:
     else:
         ckpt = torch.load(path, map_location=device)
         return ckpt.get("state_dict", ckpt)
-
-def calculate_weights(weight_A: torch.Tensor, weight_B: torch.Tensor, ratio: float, mode: str) -> torch.Tensor:
+        
+def calculate_weights(weight_A: torch.Tensor, weight_B: torch.Tensor, ratio: float, mode: str, **kwargs) -> torch.Tensor:
     if mode == "replace":
         return weight_B * ratio
-    return weight_A * (1 - ratio) + weight_B * ratio
+    elif mode == "linear_combination":
+        return weight_A * (1 - ratio) + weight_B * ratio
+    elif mode == "svd":
+        dim = kwargs.get('dim', 20480)
+        clamp_quantile = kwargs.get('clamp_quantile', 0.99)
+        min_diff = kwargs.get('min_diff', 0.01)
+        device = kwargs.get('device', "cpu")
+
+        weight_diff = weight_A - weight_B
+
+        # Only perform SVD if the maximum absolute difference exceeds the threshold
+        if torch.max(torch.abs(weight_diff)) > min_diff:
+            if device:
+                weight_diff = weight_diff.to(device)
+            weight_diff = weight_diff.to(torch.float32)
+
+            original_shape = weight_diff.shape  # Record the original shape
+
+            # Reshape the tensor to 2D if necessary
+            if weight_diff.dim() < 2:
+                mat = weight_diff.view(-1, 1)
+            else:
+                # Determine if it's a Conv2d layer
+                is_conv2d = len(weight_diff.size()) == 4
+                if is_conv2d:
+                    out_channels, in_channels, kH, kW = weight_diff.size()
+                    mat = weight_diff.view(out_channels, -1)
+                else:
+                    mat = weight_diff
+
+            # Compute SVD
+            U, S, Vh = torch.linalg.svd(mat, full_matrices=False)
+            rank = min(dim, U.size(1), Vh.size(0))
+            U = U[:, :rank]
+            S = S[:rank]
+            Vh = Vh[:rank, :]
+
+            U_S = U @ torch.diag(S)
+
+            # Clamp U_S and Vh
+            dist = torch.cat([U_S.flatten(), Vh.flatten()])
+            hi_val = torch.quantile(dist, clamp_quantile)
+            low_val = -hi_val
+            
+            U_S = U_S.clamp(low_val, hi_val)
+            Vh = Vh.clamp(low_val, hi_val)
+
+            # Reconstruct the approximated weight difference
+            mat_approx = U_S @ Vh
+
+            # Reshape back to the original shape
+            if weight_diff.dim() < 2:
+                weight_diff_svd = mat_approx.view(original_shape)
+            elif is_conv2d:
+                weight_diff_svd = mat_approx.view(out_channels, in_channels, kH, kW)
+            else:
+                weight_diff_svd = mat_approx.view(original_shape)
+
+            # Merge the weights
+            merged_weight = weight_B + weight_diff_svd * 1
+            return merged_weight
+        else:
+            # If the difference is below the threshold, return the original weights
+            return weight_A
+    else:
+        # Default return original weights
+        return weight_A
 
 # 处理层的方法，支持不同的计算方式
 def process_layers(
@@ -46,10 +113,10 @@ def process_layers(
 ) -> dict[str, torch.Tensor]:
     merged_state_dict = {}
 
-    for layer_name, weight_A in state_dict_A.items():
+    for layer_name, weight_A in tqdm(state_dict_A.items(), desc="Processing layers"):
         if layer_name in config_dict:
             ratio = config_dict[layer_name]
-            layer_name_without_model = layer_name#.replace('model.', '', 1)
+            layer_name_without_model = layer_name
             if state_dict_B and layer_name_without_model in state_dict_B:
                 weight_B = state_dict_B[layer_name_without_model]
                 merged_state_dict[layer_name] = calculate_weights(weight_A, weight_B, ratio, mode)
