@@ -139,7 +139,7 @@ batch_size = {batch_size}
 """
 #训练通用配置
 base_batch_config = """
-{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type Lion8bit --xformers --mixed_precision=fp16 --full_fp16 --gradient_checkpointing --save_every_n_epochs={save_every_n_epochs} --lr_scheduler="{lr_scheduler}" --seed 1234 """# --sample_prompts {sample_prompts} --sample_sampler ddim --sample_every_n_epochs {save_every_n_epochs} """
+{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type Lion8bit --xformers --mixed_precision=fp16 --full_fp16 --save_every_n_epochs={save_every_n_epochs} --lr_scheduler="{lr_scheduler}" --seed 1234 """# --sample_prompts {sample_prompts} --sample_sampler ddim --sample_every_n_epochs {save_every_n_epochs} """
 #--cache_latents 恢复 为了更多的batch
 finetune_batch_config = """--learning_rate={lr} """
 
@@ -207,7 +207,7 @@ def main():
             bat_config += dreambooth_batch_config
             
         if not args.chara:
-            bat_config += f"""--cache_text_encoder_outputs --flip_aug --optimizer_args weight_decay={weight_decay} betas=0.9,0.99 --gradient_checkpointing --gradient_accumulation_steps=128 """ # --face_crop_aug_range 1.0,3.0 --color_aug 
+            bat_config += f"""--cache_text_encoder_outputs --flip_aug --optimizer_args weight_decay={weight_decay} betas=0.9,0.95 --gradient_checkpointing """ # --face_crop_aug_range 1.0,3.0 --color_aug  --gradient_accumulation_steps=16
         if noise_offset:
             bat_config += f"""--noise_offset {noise_offset} """
         
