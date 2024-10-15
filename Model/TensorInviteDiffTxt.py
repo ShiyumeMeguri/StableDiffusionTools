@@ -1,8 +1,9 @@
-﻿from pathlib import Path
+from pathlib import Path
 import torch
 import argparse
 import numpy as np
 import os
+from tqdm import tqdm
 
 def load_model(path: Path, device: str) -> dict[str, torch.Tensor]:
     if path.suffix == ".safetensors":
@@ -36,7 +37,8 @@ def main(input: str, inputB: str):
     total_variance = 0.0
     total_norm_diff = 0.0
 
-    for layer_name, tensor in input_model.items():
+    # Use tqdm directly in the for loop
+    for layer_name, tensor in tqdm(input_model.items(), desc="Comparing Layers", total=len(input_model)):
         if layer_name in inputB_model:
             # Ensure tensors are float for computation
             tensor = tensor.float()
@@ -60,7 +62,7 @@ def main(input: str, inputB: str):
             continue
 
     # Save the diff_variances and norm differences to a txt file
-    with open(f"{save_dir}/Diff_Variances.txt", "w") as f:
+    with open(f"{save_dir}/Diff_Variances.txt", "w", encoding="utf-8") as f:
         f.write('{:<30}{:<30}{:<30}{:<50}{:<30}\n'.format("类似曲线陡峭程度", "类似向量长度变化", "Shape", "Layer Name", ""))
         for layer_name in diff_variances.keys():
             variance = diff_variances[layer_name]
