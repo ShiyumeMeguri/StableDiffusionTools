@@ -42,11 +42,11 @@ def compute_enhanced_model(model_a, model_b, base_model, positive_ratio, negativ
         diff = torch.zeros_like(a_layer, device=device)
 
         # 情况1：delta_a 和 delta_b 同号，使用 delta_b - delta_a 计算差异
-        mask_same_sign = ((delta_a > 0) & (delta_b > 0)) | ((delta_a < 0) & (delta_b < 0))
+        mask_same_sign = (delta_a * delta_b) >= 0
         diff[mask_same_sign] = (delta_b[mask_same_sign] - delta_a[mask_same_sign]) * positive_ratio
 
         # 情况2：delta_a 和 delta_b 符号相反，取绝对值和的平均并还原符号
-        mask_diff_sign = ((delta_a > 0) & (delta_b < 0)) | ((delta_a < 0) & (delta_b > 0))
+        mask_diff_sign = (delta_a * delta_b) < 0
         # 计算绝对值和的平均值
         mean_abs = (delta_a[mask_diff_sign].abs() + delta_b[mask_diff_sign].abs()) * negative_ratio
         # 使用 delta_b 的符号来恢复方向
@@ -62,8 +62,8 @@ def main():
     parser.add_argument("model_a", type=str, help="模型A的路径（经过任务A微调）")
     parser.add_argument("model_b", type=str, help="模型B的路径（经过任务B微调）")
     parser.add_argument("base_model", type=str, help="基础模型的路径（未微调的原始模型）")
-    parser.add_argument("--positive_ratio", "-p", type=float, default=1.0, help="正数权重比率，推荐0.5。不知道为什么会柔和场景")
-    parser.add_argument("--negative_ratio", "-n", type=float, default=1.0, help="负数权重比率，推荐0.5。不知道为什么会提升画面亮度与细节")
+    parser.add_argument("--positive_ratio", "-p", type=float, default=1.0, help="正数权重比率，推荐0.5。只使用这个的时候会消除很多细节")
+    parser.add_argument("--negative_ratio", "-n", type=float, default=1.0, help="负数权重比率，推荐0.5。只使用这个的时候会添加很多细节")
     parser.add_argument("--output", type=str, help="输出模型的文件名（会自动添加比率信息）", required=False)
     args = parser.parse_args()
     
