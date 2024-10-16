@@ -24,7 +24,7 @@ def save_model(state_dict: dict, path: Path) -> None:
     else:
         torch.save({"state_dict": state_dict}, path)
 
-def compute_enhanced_model(model_a, model_b, base_model, device='cuda'):
+def compute_enhanced_model(model_a, model_b, base_model, positive_ratio, negative_ratio, device='cuda'):
     """在GPU上计算增强模型，融合模型A和B的特征，同时避免负数削弱特征"""
     enhanced_model = {}
     
@@ -43,11 +43,14 @@ def compute_enhanced_model(model_a, model_b, base_model, device='cuda'):
 
         # 情况1：delta_a 和 delta_b 同号，使用 delta_b - delta_a 计算差异
         mask_same_sign = ((delta_a > 0) & (delta_b > 0)) | ((delta_a < 0) & (delta_b < 0))
-        diff[mask_same_sign] = delta_b[mask_same_sign] - delta_a[mask_same_sign]
+        diff[mask_same_sign] = (delta_b[mask_same_sign] - delta_a[mask_same_sign]) * positive_ratio
 
-        # 情况2：delta_a 和 delta_b 符号相反，使用 delta_b 的符号来保留方向
+        # 情况2：delta_a 和 delta_b 符号相反，取绝对值和的平均并还原符号
         mask_diff_sign = ((delta_a > 0) & (delta_b < 0)) | ((delta_a < 0) & (delta_b > 0))
-        diff[mask_diff_sign] = (delta_a[mask_diff_sign].abs() + delta_b[mask_diff_sign].abs()) * torch.sign(delta_b[mask_diff_sign])
+        # 计算绝对值和的平均值
+        mean_abs = (delta_a[mask_diff_sign].abs() + delta_b[mask_diff_sign].abs()) * negative_ratio
+        # 使用 delta_b 的符号来恢复方向
+        diff[mask_diff_sign] = mean_abs * torch.sign(delta_b[mask_diff_sign])
 
         # 将融合后的权重加回模型A
         enhanced_model[layer_name] = (a_layer + diff).cpu()  # 计算完成后移回CPU
@@ -56,10 +59,12 @@ def compute_enhanced_model(model_a, model_b, base_model, device='cuda'):
 
 def main():
     parser = argparse.ArgumentParser(description="模型特征合并到A脚本")
-    parser.add_argument("--model_a", type=str, required=True, help="模型A的路径（经过任务A微调）")
-    parser.add_argument("--model_b", type=str, required=True, help="模型B的路径（经过任务B微调）")
-    parser.add_argument("--base_model", type=str, required=True, help="基础模型的路径（未微调的原始模型）")
-    parser.add_argument("--output", type=str, required=True, help="输出增强模型的路径")
+    parser.add_argument("model_a", type=str, help="模型A的路径（经过任务A微调）")
+    parser.add_argument("model_b", type=str, help="模型B的路径（经过任务B微调）")
+    parser.add_argument("base_model", type=str, help="基础模型的路径（未微调的原始模型）")
+    parser.add_argument("--positive_ratio", "-p", type=float, default=1.0, help="正数权重比率，推荐0.5。不知道为什么会柔和场景")
+    parser.add_argument("--negative_ratio", "-n", type=float, default=1.0, help="负数权重比率，推荐0.5。不知道为什么会提升画面亮度与细节")
+    parser.add_argument("--output", type=str, help="输出模型的文件名（会自动添加比率信息）", required=False)
     args = parser.parse_args()
     
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -68,13 +73,17 @@ def main():
     model_a = load_model(Path(args.model_a), device='cpu')
     model_b = load_model(Path(args.model_b), device='cpu')
     base_model = load_model(Path(args.base_model), device='cpu')
-    
+
     # 在GPU上计算增强模型（如果有GPU）
-    enhanced_model = compute_enhanced_model(model_a, model_b, base_model, device=device)
+    enhanced_model = compute_enhanced_model(model_a, model_b, base_model, args.positive_ratio, args.negative_ratio, device=device)
+    
+    # 确定输出文件名
+    output_file = Path(args.output if args.output else "enhanced_model.ckpt")
+    output_file = output_file.with_stem(f"{output_file.stem}_p{args.positive_ratio}+n{args.negative_ratio}")
     
     # 保存增强模型
-    save_model(enhanced_model, Path(args.output))
-    print(f"增强模型已保存到 {args.output}")
+    save_model(enhanced_model, output_file)
+    print(f"增强模型已保存到 {output_file}")
 
 if __name__ == "__main__":
     main()
