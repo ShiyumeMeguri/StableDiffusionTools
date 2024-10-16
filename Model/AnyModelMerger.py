@@ -121,7 +121,7 @@ def process_layers(
                 else:
                     merged_state_dict[layer_name] = weight_A
         else:
-            print(f"层丢失警告: 输入模型的 {layer_name} 层找不到 配置文件可能被错误修改")
+            print(f"跳过层: {layer_name}")
 
     return merged_state_dict
 
