@@ -1,4 +1,4 @@
-﻿import argparse
+﻿import argparse 
 import torch
 from pathlib import Path
 from tqdm import tqdm
@@ -74,12 +74,21 @@ def main():
     model_b = load_model(Path(args.model_b), device='cpu')
     base_model = load_model(Path(args.base_model), device='cpu')
 
+    # 获取模型文件的名称（不带后缀）
+    model_a_name = Path(args.model_a).stem
+    model_b_name = Path(args.model_b).stem
+
     # 在GPU上计算增强模型（如果有GPU）
     enhanced_model = compute_enhanced_model(model_a, model_b, base_model, args.positive_ratio, args.negative_ratio, device=device)
     
-    # 确定输出文件名
-    output_file = Path(args.output if args.output else "enhanced_model.ckpt")
-    output_file = output_file.with_stem(f"{output_file.stem}_p{args.positive_ratio}+n{args.negative_ratio}")
+    # 构建文件名后缀
+    suffix = f"_p{args.positive_ratio}+n{args.negative_ratio}"
+
+    # 如果指定了输出文件名，则在文件名后加上比率信息
+    if args.output:
+        output_file = Path(args.output).with_stem(Path(args.output).stem + suffix)
+    else:
+        output_file = Path(args.model_a).parent / f"{model_a_name}+{model_b_name}{suffix}.ckpt"
     
     # 保存增强模型
     save_model(enhanced_model, output_file)
