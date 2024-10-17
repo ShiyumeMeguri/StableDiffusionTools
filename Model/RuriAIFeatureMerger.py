@@ -34,13 +34,17 @@ def compute_enhanced_model(model_a, model_b, base_model_a, base_model_b, positiv
         b_layer = model_b[layer_name].to(device) if layer_name in model_b else a_layer
 
         # 如果有 base_model_a 和 base_model_b，计算差异；否则直接相减
-        base_layer_a = base_model_a[layer_name].to(device) if base_model_a and layer_name in base_model_a else a_layer
-        base_layer_b = base_model_b[layer_name].to(device) if base_model_b and layer_name in base_model_b else b_layer
+        if base_model_a and base_model_b:
+            base_layer_a = base_model_a[layer_name].to(device) if base_model_a and layer_name in base_model_a else a_layer
+            base_layer_b = base_model_b[layer_name].to(device) if base_model_b and layer_name in base_model_b else a_layer
 
-        # 计算模型A和模型B相对于各自基础模型的权重差异
-        delta_a = a_layer - base_layer_a
-        delta_b = b_layer - base_layer_b
-        
+            # 计算模型A和模型B相对于各自基础模型的权重差异
+            delta_a = a_layer - base_layer_a
+            delta_b = b_layer - base_layer_b
+        else:
+            delta_a = a_layer
+            delta_b = b_layer
+            
         # 初始化 diff
         diff = torch.zeros_like(a_layer, device=device)
 
@@ -64,10 +68,10 @@ def main():
     parser = argparse.ArgumentParser(description="模型特征合并到A脚本")
     parser.add_argument("model_a", type=str, help="模型A的路径（经过任务A微调）")
     parser.add_argument("model_b", type=str, help="模型B的路径（经过任务B微调）")
-    parser.add_argument("--base_model_a", type=str, help="基础模型A的路径（可选）", required=False)
+    parser.add_argument("--base_model_a", type=str, help="基础模型A的路径（建议填写）", required=False)
     parser.add_argument("--base_model_b", type=str, help="基础模型B的路径（可选）", required=False)
-    parser.add_argument("--positive_ratio", "-p", type=float, default=1.0, help="正数权重比率，推荐0.5。只使用这个的时候会消除很多细节")
-    parser.add_argument("--negative_ratio", "-n", type=float, default=1.0, help="负数权重比率，推荐0.5。只使用这个的时候会添加很多细节")
+    parser.add_argument("--positive_ratio", "--p", type=float, default=1.0, help="正数权重比率，推荐0.5。只使用这个的时候会消除很多细节")
+    parser.add_argument("--negative_ratio", "--n", type=float, default=1.0, help="负数权重比率，推荐0.5。只使用这个的时候会添加很多细节")
     parser.add_argument("--output", type=str, help="输出模型的文件名（会自动添加比率信息）", required=False)
     args = parser.parse_args()
     
@@ -79,7 +83,7 @@ def main():
 
     # 加载基础模型（如果提供了）
     base_model_a = load_model(Path(args.base_model_a), device='cpu') if args.base_model_a else None
-    base_model_b = load_model(Path(args.base_model_b), device='cpu') if args.base_model_b else None
+    base_model_b = load_model(Path(args.base_model_b), device='cpu') if args.base_model_b else base_model_a
 
     # 获取模型文件的名称（不带后缀）
     model_a_name = Path(args.model_a).stem
