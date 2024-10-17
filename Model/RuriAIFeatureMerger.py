@@ -59,11 +59,8 @@ def compute_enhanced_model(model_a, model_b, base_model_a, base_model_b, same_ra
 
         # 情况2：delta_a 和 delta_b 符号相反，取绝对值和的平均并还原符号
         mask_diff_sign = (delta_a * delta_b) < 0
-        # 计算绝对值和的平均值
-        mean_abs = (delta_a[mask_diff_sign].abs() + delta_b[mask_diff_sign].abs()) * reverse_ratio
-        #mean_abs = (delta_b[mask_diff_sign].abs() - delta_a[mask_diff_sign].abs()) * reverse_ratio
-        # 使用 delta_b 的符号来恢复方向
-        diff[mask_diff_sign] = mean_abs * torch.sign(delta_b[mask_diff_sign])
+        #diff[mask_diff_sign] = (delta_b[mask_diff_sign] + delta_a[mask_diff_sign]) * reverse_ratio
+        diff[mask_diff_sign] = (delta_b[mask_diff_sign] - delta_a[mask_diff_sign]) * reverse_ratio
 
         # 将融合后的权重加回模型A
         enhanced_model[layer_name] = (a_layer + diff).cpu()  # 计算完成后移回CPU
