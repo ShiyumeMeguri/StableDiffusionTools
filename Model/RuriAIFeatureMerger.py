@@ -70,6 +70,15 @@ def compute_enhanced_model(model_a, model_b, base_model_a, base_model_b, same_ra
 
     return enhanced_model
 
+def run_fusion(model_a, model_b, base_model_a, base_model_b, same_ratio, reverse_ratio, device, output_file):
+    """根据参数运行模型融合"""
+    # 在GPU上计算增强模型（如果有GPU）
+    enhanced_model = compute_enhanced_model(model_a, model_b, base_model_a, base_model_b, same_ratio, reverse_ratio, device=device)
+    
+    # 保存增强模型
+    save_model(enhanced_model, output_file)
+    print(f"增强模型已保存到 {output_file}")
+
 def main():
     parser = argparse.ArgumentParser(description="模型特征合并到A脚本")
     parser.add_argument("model_a", type=str, help="模型A的路径（经过任务A微调）")
@@ -79,11 +88,12 @@ def main():
     parser.add_argument("--same_ratio", "-s", type=float, default=1.0, help="模型之间的相同特征比率，推荐1.0。")
     parser.add_argument("--reverse_ratio", "-r", type=float, default=1.0, help="模型之间的不同特征比率，推荐0.5。")
     parser.add_argument("--output", type=str, help="输出模型的文件名（会自动添加比率信息）", required=False)
+    parser.add_argument("--debug", action="store_true", help="开启调试模式，模型常驻内存，等待用户输入新的参数")
     args = parser.parse_args()
     
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    # 加载模型到CPU
+    # 加载模型到CPU（仅加载一次）
     model_a = load_model(Path(args.model_a), device='cpu')
     model_b = load_model(Path(args.model_b), device='cpu')
 
@@ -95,9 +105,6 @@ def main():
     model_a_name = Path(args.model_a).stem
     model_b_name = Path(args.model_b).stem
 
-    # 在GPU上计算增强模型（如果有GPU）
-    enhanced_model = compute_enhanced_model(model_a, model_b, base_model_a, base_model_b, args.same_ratio, args.reverse_ratio, device=device)
-    
     # 构建文件名后缀
     suffix = f"_s{args.same_ratio}+r{args.reverse_ratio}"
 
@@ -107,9 +114,36 @@ def main():
     else:
         output_file = Path(args.model_a).parent / f"{model_a_name}+{model_b_name}{suffix}.ckpt"
     
-    # 保存增强模型
-    save_model(enhanced_model, output_file)
-    print(f"增强模型已保存到 {output_file}")
+    # 初次运行模型融合
+    run_fusion(model_a, model_b, base_model_a, base_model_b, args.same_ratio, args.reverse_ratio, device, output_file)
+
+    # 如果开启了debug模式，进入循环
+    if args.debug:
+        while True:
+            try:
+                # 等待用户输入新的same_ratio和reverse_ratio
+                print("进入调试模式，输入新的same_ratio和reverse_ratio，回车确认（格式：same_ratio reverse_ratio），按Ctrl+C退出：")
+                user_input = input().strip()
+                
+                if user_input:
+                    same_ratio, reverse_ratio = map(float, user_input.split())
+                    args.same_ratio = same_ratio
+                    args.reverse_ratio = reverse_ratio
+
+                    # 构建新的文件名后缀
+                    suffix = f"_s{same_ratio}+r{reverse_ratio}"
+                    if args.output:
+                        output_file = Path(args.output).with_stem(Path(args.output).stem + suffix)
+                    else:
+                        output_file = Path(args.model_a).parent / f"{model_a_name}+{model_b_name}{suffix}.ckpt"
+
+                    # 重新进行融合计算
+                    run_fusion(model_a, model_b, base_model_a, base_model_b, same_ratio, reverse_ratio, device, output_file)
+                else:
+                    print("输入无效，请重新输入。")
+            except KeyboardInterrupt:
+                print("退出调试模式")
+                break
 
 if __name__ == "__main__":
     main()
