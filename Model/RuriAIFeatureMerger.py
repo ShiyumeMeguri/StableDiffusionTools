@@ -45,7 +45,11 @@ def compute_enhanced_model(model_a, model_b, base_model_a, base_model_b, same_ra
             delta_a = a_layer
             delta_b = b_layer
             
-        # 初始化 diff
+        # 几种计算方式在Animagine和Pony组合时的情况 
+        #-- 破坏一半(效果还行) 
+        #-+ 不会破坏(效果更好) 
+        #+- 破坏殆尽 
+        #++ 破坏殆尽
         diff = torch.zeros_like(a_layer, device=device)
 
         # 情况1：delta_a 和 delta_b 同号，使用 delta_b - delta_a 计算差异
