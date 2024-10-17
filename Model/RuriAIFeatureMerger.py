@@ -24,7 +24,7 @@ def save_model(state_dict: dict, path: Path) -> None:
     else:
         torch.save({"state_dict": state_dict}, path)
 
-def compute_enhanced_model(model_a, model_b, base_model_a, base_model_b, positive_ratio, negative_ratio, device='cuda'):
+def compute_enhanced_model(model_a, model_b, base_model_a, base_model_b, same_ratio, reverse_ratio, device='cuda'):
     """在GPU上计算增强模型，融合模型A和B的特征，同时避免负数削弱特征"""
     enhanced_model = {}
     
@@ -50,12 +50,12 @@ def compute_enhanced_model(model_a, model_b, base_model_a, base_model_b, positiv
 
         # 情况1：delta_a 和 delta_b 同号，使用 delta_b - delta_a 计算差异
         mask_same_sign = (delta_a * delta_b) >= 0
-        diff[mask_same_sign] = (delta_b[mask_same_sign] - delta_a[mask_same_sign]) * positive_ratio
+        diff[mask_same_sign] = (delta_b[mask_same_sign] - delta_a[mask_same_sign]) * same_ratio
 
         # 情况2：delta_a 和 delta_b 符号相反，取绝对值和的平均并还原符号
         mask_diff_sign = (delta_a * delta_b) < 0
         # 计算绝对值和的平均值
-        mean_abs = (delta_a[mask_diff_sign].abs() + delta_b[mask_diff_sign].abs()) * negative_ratio
+        mean_abs = (delta_a[mask_diff_sign].abs() + delta_b[mask_diff_sign].abs()) * reverse_ratio
         # 使用 delta_b 的符号来恢复方向
         diff[mask_diff_sign] = mean_abs * torch.sign(delta_b[mask_diff_sign])
 
@@ -70,8 +70,8 @@ def main():
     parser.add_argument("model_b", type=str, help="模型B的路径（经过任务B微调）")
     parser.add_argument("--base_model_a", type=str, help="基础模型A的路径（建议填写）", required=False)
     parser.add_argument("--base_model_b", type=str, help="基础模型B的路径（可选）", required=False)
-    parser.add_argument("--positive_ratio", "-p", type=float, default=1.0, help="模型之间的相同特征比率，推荐1.0。")
-    parser.add_argument("--negative_ratio", "-n", type=float, default=1.0, help="模型之间的不同特征比率，推荐0.5。")
+    parser.add_argument("--same_ratio", "-s", type=float, default=1.0, help="模型之间的相同特征比率，推荐1.0。")
+    parser.add_argument("--reverse_ratio", "-r", type=float, default=1.0, help="模型之间的不同特征比率，推荐0.5。")
     parser.add_argument("--output", type=str, help="输出模型的文件名（会自动添加比率信息）", required=False)
     args = parser.parse_args()
     
@@ -90,10 +90,10 @@ def main():
     model_b_name = Path(args.model_b).stem
 
     # 在GPU上计算增强模型（如果有GPU）
-    enhanced_model = compute_enhanced_model(model_a, model_b, base_model_a, base_model_b, args.positive_ratio, args.negative_ratio, device=device)
+    enhanced_model = compute_enhanced_model(model_a, model_b, base_model_a, base_model_b, args.same_ratio, args.reverse_ratio, device=device)
     
     # 构建文件名后缀
-    suffix = f"_p{args.positive_ratio}+n{args.negative_ratio}"
+    suffix = f"_s{args.same_ratio}+r{args.reverse_ratio}"
 
     # 如果指定了输出文件名，则在文件名后加上比率信息
     if args.output:
