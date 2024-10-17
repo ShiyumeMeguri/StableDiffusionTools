@@ -70,8 +70,8 @@ def main():
     parser.add_argument("model_b", type=str, help="模型B的路径（经过任务B微调）")
     parser.add_argument("--base_model_a", type=str, help="基础模型A的路径（建议填写）", required=False)
     parser.add_argument("--base_model_b", type=str, help="基础模型B的路径（可选）", required=False)
-    parser.add_argument("--positive_ratio", "--p", type=float, default=1.0, help="正数权重比率，推荐0.5。只使用这个的时候会消除很多细节")
-    parser.add_argument("--negative_ratio", "--n", type=float, default=1.0, help="负数权重比率，推荐0.5。只使用这个的时候会添加很多细节")
+    parser.add_argument("--positive_ratio", "-p", type=float, default=1.0, help="模型之间的相同特征比率，推荐1.0。")
+    parser.add_argument("--negative_ratio", "-n", type=float, default=1.0, help="模型之间的不同特征比率，推荐0.5。")
     parser.add_argument("--output", type=str, help="输出模型的文件名（会自动添加比率信息）", required=False)
     args = parser.parse_args()
     
