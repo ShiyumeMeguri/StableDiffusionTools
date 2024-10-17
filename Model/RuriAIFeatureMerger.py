@@ -1,4 +1,4 @@
-﻿import argparse 
+﻿import argparse
 import torch
 from pathlib import Path
 from tqdm import tqdm
@@ -24,19 +24,22 @@ def save_model(state_dict: dict, path: Path) -> None:
     else:
         torch.save({"state_dict": state_dict}, path)
 
-def compute_enhanced_model(model_a, model_b, base_model, positive_ratio, negative_ratio, device='cuda'):
+def compute_enhanced_model(model_a, model_b, base_model_a, base_model_b, positive_ratio, negative_ratio, device='cuda'):
     """在GPU上计算增强模型，融合模型A和B的特征，同时避免负数削弱特征"""
     enhanced_model = {}
     
     for layer_name in tqdm(model_a.keys(), desc="计算增强模型"):
         # 将模型A、B及基础模型的权重移动到GPU进行计算
         a_layer = model_a[layer_name].to(device)
-        base_layer = base_model[layer_name].to(device) if layer_name in base_model else a_layer
         b_layer = model_b[layer_name].to(device) if layer_name in model_b else a_layer
 
-        # 计算模型A和模型B相对于基础模型的权重差异
-        delta_a = a_layer - base_layer
-        delta_b = b_layer - base_layer
+        # 如果有 base_model_a 和 base_model_b，计算差异；否则直接相减
+        base_layer_a = base_model_a[layer_name].to(device) if base_model_a and layer_name in base_model_a else a_layer
+        base_layer_b = base_model_b[layer_name].to(device) if base_model_b and layer_name in base_model_b else b_layer
+
+        # 计算模型A和模型B相对于各自基础模型的权重差异
+        delta_a = a_layer - base_layer_a
+        delta_b = b_layer - base_layer_b
         
         # 初始化 diff
         diff = torch.zeros_like(a_layer, device=device)
@@ -61,7 +64,8 @@ def main():
     parser = argparse.ArgumentParser(description="模型特征合并到A脚本")
     parser.add_argument("model_a", type=str, help="模型A的路径（经过任务A微调）")
     parser.add_argument("model_b", type=str, help="模型B的路径（经过任务B微调）")
-    parser.add_argument("base_model", type=str, help="基础模型的路径（未微调的原始模型）")
+    parser.add_argument("--base_model_a", type=str, help="基础模型A的路径（可选）", required=False)
+    parser.add_argument("--base_model_b", type=str, help="基础模型B的路径（可选）", required=False)
     parser.add_argument("--positive_ratio", "-p", type=float, default=1.0, help="正数权重比率，推荐0.5。只使用这个的时候会消除很多细节")
     parser.add_argument("--negative_ratio", "-n", type=float, default=1.0, help="负数权重比率，推荐0.5。只使用这个的时候会添加很多细节")
     parser.add_argument("--output", type=str, help="输出模型的文件名（会自动添加比率信息）", required=False)
@@ -72,14 +76,17 @@ def main():
     # 加载模型到CPU
     model_a = load_model(Path(args.model_a), device='cpu')
     model_b = load_model(Path(args.model_b), device='cpu')
-    base_model = load_model(Path(args.base_model), device='cpu')
+
+    # 加载基础模型（如果提供了）
+    base_model_a = load_model(Path(args.base_model_a), device='cpu') if args.base_model_a else None
+    base_model_b = load_model(Path(args.base_model_b), device='cpu') if args.base_model_b else None
 
     # 获取模型文件的名称（不带后缀）
     model_a_name = Path(args.model_a).stem
     model_b_name = Path(args.model_b).stem
 
     # 在GPU上计算增强模型（如果有GPU）
-    enhanced_model = compute_enhanced_model(model_a, model_b, base_model, args.positive_ratio, args.negative_ratio, device=device)
+    enhanced_model = compute_enhanced_model(model_a, model_b, base_model_a, base_model_b, args.positive_ratio, args.negative_ratio, device=device)
     
     # 构建文件名后缀
     suffix = f"_p{args.positive_ratio}+n{args.negative_ratio}"
