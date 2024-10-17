@@ -50,12 +50,14 @@ def compute_enhanced_model(model_a, model_b, base_model_a, base_model_b, same_ra
 
         # 情况1：delta_a 和 delta_b 同号，使用 delta_b - delta_a 计算差异
         mask_same_sign = (delta_a * delta_b) >= 0
+        #diff[mask_same_sign] = (delta_b[mask_same_sign] + delta_a[mask_same_sign]) * same_ratio
         diff[mask_same_sign] = (delta_b[mask_same_sign] - delta_a[mask_same_sign]) * same_ratio
 
         # 情况2：delta_a 和 delta_b 符号相反，取绝对值和的平均并还原符号
         mask_diff_sign = (delta_a * delta_b) < 0
         # 计算绝对值和的平均值
         mean_abs = (delta_a[mask_diff_sign].abs() + delta_b[mask_diff_sign].abs()) * reverse_ratio
+        #mean_abs = (delta_b[mask_diff_sign].abs() - delta_a[mask_diff_sign].abs()) * reverse_ratio
         # 使用 delta_b 的符号来恢复方向
         diff[mask_diff_sign] = mean_abs * torch.sign(delta_b[mask_diff_sign])
 
