@@ -111,7 +111,7 @@ def process_layers(
     for layer_name, weight_A in tqdm(state_dict_A.items(), desc="Processing layers"):
         if layer_name in config_dict:
             ratio = config_dict[layer_name]
-            layer_name_without_model = layer_name
+            layer_name_without_model = layer_name#.replace("model.", "")
             if state_dict_B and layer_name_without_model in state_dict_B:
                 weight_B = state_dict_B[layer_name_without_model]
                 merged_state_dict[layer_name] = calculate_weights(weight_A, weight_B, ratio, mode)
@@ -121,7 +121,7 @@ def process_layers(
                 else:
                     merged_state_dict[layer_name] = weight_A
         else:
-            print(f"层丢失警告: 输入模型的 {layer_name} 层找不到 配置文件可能被错误修改")
+            print(f"跳过层: {layer_name}")
 
     return merged_state_dict
 

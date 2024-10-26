@@ -139,7 +139,7 @@ batch_size = {batch_size}
 """
 #训练通用配置
 base_batch_config = """
-{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type Lion8bit --xformers --mixed_precision=fp16 --full_fp16 --save_every_n_epochs={save_every_n_epochs} --lr_scheduler="{lr_scheduler}" """# --sample_prompts {sample_prompts} --sample_sampler ddim --sample_every_n_epochs {save_every_n_epochs} """
+{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type AdamW8bit --xformers --mixed_precision=fp16 --full_fp16 --fp8_base --save_every_n_epochs={save_every_n_epochs} --lr_scheduler="{lr_scheduler}" """# --sample_prompts {sample_prompts} --sample_sampler ddim --sample_every_n_epochs {save_every_n_epochs} """
 #--cache_latents 恢复 为了更多的batch
 finetune_batch_config = """--learning_rate={lr} """
 
@@ -207,9 +207,9 @@ def main():
             bat_config += dreambooth_batch_config
             
         if not args.chara:  #                                                                                          lion优化器的话必须64batch以上 4096更好 32768最好
-            bat_config += f"""--flip_aug --optimizer_args weight_decay={weight_decay} betas=0.9,0.95 --gradient_checkpointing --gradient_accumulation_steps=128 --loss_type smooth_l1 """ # --face_crop_aug_range 1.0,3.0 --color_aug --cache_text_encoder_outputs 
-        if noise_offset:
-            bat_config += f"""--noise_offset {noise_offset} """
+            bat_config += f"""--flip_aug --gradient_checkpointing """ # --face_crop_aug_range 1.0,3.0 --color_aug --cache_text_encoder_outputs --optimizer_args weight_decay={weight_decay} betas=0.9,0.95 --gradient_accumulation_steps=32 --loss_type smooth_l1 
+        #if noise_offset:
+        #    bat_config += f"""--noise_offset {noise_offset} """
         
         lr = dreambooth_lr if training_type == "DreamBooth" else finetune_lr
         model_output_dir = f"{base_path}/model/{folder_name}_{image_name}"
