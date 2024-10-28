@@ -1,15 +1,9 @@
 ﻿from typing import Any, Literal
 from pathlib import Path
-import re
-import math
 import torch
 import argparse
-import tensorflow as tf
 import numpy as np
-import torch
-from PIL import Image
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 
 def save_state_dict(state: dict[str, Any], path: str, format: Literal["ckpt", "safetensors"]) -> None:
     if format == "ckpt":
@@ -32,79 +26,56 @@ def load_model(path: Path, device: str) -> dict[str, torch.Tensor]:
     else:
         ckpt = torch.load(path, map_location=device)
         return ckpt.get("state_dict", ckpt)
-        
-def calculate_weights(weight_A: torch.Tensor, weight_B: torch.Tensor, ratio: float, mode: str, **kwargs) -> torch.Tensor:
+
+def slerp(v0: torch.Tensor, v1: torch.Tensor, t: float) -> torch.Tensor:
+    """执行两个张量之间的球面线性插值（SLERP）。"""
+    # 将张量展平成一维
+    v0_flat = v0.view(-1)
+    v1_flat = v1.view(-1)
+
+    # 计算范数
+    v0_norm = torch.norm(v0_flat)
+    v1_norm = torch.norm(v1_flat)
+
+    # 归一化
+    v0_unit = v0_flat / v0_norm
+    v1_unit = v1_flat / v1_norm
+
+    # 计算点积并进行数值稳定性处理
+    dot = torch.dot(v0_unit, v1_unit)
+    dot = torch.clamp(dot, -1.0, 1.0)
+
+    # 计算角度和sin值
+    omega = torch.acos(dot)
+    sin_omega = torch.sin(omega)
+
+    # 处理角度过小的情况，避免除以零
+    if sin_omega.abs() < 1e-6:
+        # 使用线性插值
+        slerp_result = (1.0 - t) * v0 + t * v1
+    else:
+        # 计算插值权重
+        coeff_0 = torch.sin((1.0 - t) * omega) / sin_omega
+        coeff_1 = torch.sin(t * omega) / sin_omega
+        # 组合结果并恢复原始形状
+        slerp_result = coeff_0 * v0 + coeff_1 * v1
+
+    return slerp_result
+
+def calculate_weights(weight_A: torch.Tensor, weight_B: torch.Tensor, ratio: float, mode: str) -> torch.Tensor:
     if mode == "replace":
         return weight_B * ratio
     elif mode == "linear_combination":
         return weight_A * (1 - ratio) + weight_B * ratio
-    elif mode == "svd":
-        dim = kwargs.get('dim', 20480)
-        clamp_quantile = kwargs.get('clamp_quantile', 0.99)
-        min_diff = kwargs.get('min_diff', 0.01)
-        device = kwargs.get('device', "cpu")
-
-        weight_diff = weight_B - weight_A 
-
-        # Only perform SVD if the maximum absolute difference exceeds the threshold
-        if torch.max(torch.abs(weight_diff)) > min_diff:
-            if device:
-                weight_diff = weight_diff.to(device)
-            weight_diff = weight_diff.to(torch.float32)
-
-            original_shape = weight_diff.shape  # Record the original shape
-
-            # Reshape the tensor to 2D if necessary
-            if weight_diff.dim() < 2:
-                mat = weight_diff.view(-1, 1)
-            else:
-                # Determine if it's a Conv2d layer
-                is_conv2d = len(weight_diff.size()) == 4
-                if is_conv2d:
-                    out_channels, in_channels, kH, kW = weight_diff.size()
-                    mat = weight_diff.view(out_channels, -1)
-                else:
-                    mat = weight_diff
-
-            # Compute SVD
-            U, S, Vh = torch.linalg.svd(mat, full_matrices=False)
-            rank = min(dim, U.size(1), Vh.size(0))
-            U = U[:, :rank]
-            S = S[:rank]
-            Vh = Vh[:rank, :]
-
-            U_S = U @ torch.diag(S)
-
-            # Clamp U_S and Vh
-            #dist = torch.cat([U_S.flatten(), Vh.flatten()])
-            #hi_val = torch.quantile(dist, clamp_quantile)
-            #low_val = -hi_val
-            #
-            #U_S = U_S.clamp(low_val, hi_val)
-            #Vh = Vh.clamp(low_val, hi_val)
-
-            # Reconstruct the approximated weight difference
-            mat_approx = U_S @ Vh
-
-            # Reshape back to the original shape
-            if weight_diff.dim() < 2:
-                weight_diff_svd = mat_approx.view(original_shape)
-            elif is_conv2d:
-                weight_diff_svd = mat_approx.view(out_channels, in_channels, kH, kW)
-            else:
-                weight_diff_svd = mat_approx.view(original_shape)
-
-            # Merge the weights
-            merged_weight = weight_A + weight_diff_svd * ratio
-            return merged_weight
+    elif mode == "slerp":
+        return slerp(weight_A, weight_B, ratio)
     return weight_A
 
-# 处理层的方法，支持不同的计算方式
 def process_layers(
     state_dict_A: dict[str, torch.Tensor], 
     state_dict_B: dict[str, torch.Tensor], 
     config_dict: dict[str, float], 
-    mode: str = "linear_combination"  # 默认的计算模式是线性组合
+    mode: str = "slerp"  # 默认的计算模式是 SLERP
 ) -> dict[str, torch.Tensor]:
     merged_state_dict = {}
 
@@ -197,7 +168,7 @@ parser.add_argument("input", type=str, help="Path to input file. Must be a .safe
 parser.add_argument("config", type=str, nargs='?', help="Path to configuration file. If not provided, model layers will be printed.")
 parser.add_argument("--output", "-o", type=str, help="Path to output file. If not provided, defaults to input+merged.ckpt.")
 parser.add_argument("--model", type=str, help="Path to model file. Must be a .safetensors or .ckpt file.")
-parser.add_argument("--mode", type=str, default="linear_combination", help="Mode of weight calculation: 'linear_combination', 'replace', 'svd', etc.")  # 新增的 mode 参数
+parser.add_argument("--mode", type=str, default="slerp", help="Mode of weight calculation: 'linear_combination', 'replace', 'slerp'")  # 默认的 mode 为 SLERP
 args = parser.parse_args()
 
 if __name__ == "__main__":
