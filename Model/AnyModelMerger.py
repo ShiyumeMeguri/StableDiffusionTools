@@ -62,7 +62,7 @@ def slerp(v0: torch.Tensor, v1: torch.Tensor, t: float) -> torch.Tensor:
 
     return slerp_result.view(v0.shape)
 
-def calculate_weights(weight_A: torch.Tensor, weight_B: torch.Tensor, ratio: float, mode: str) -> torch.Tensor:
+def calculate_weights(weight_A: torch.Tensor, weight_B: torch.Tensor, base_weight: torch.Tensor, ratio: float, mode: str) -> torch.Tensor:
     if mode == "replace":
         return weight_B * ratio
     elif mode == "linear_combination":
@@ -70,16 +70,16 @@ def calculate_weights(weight_A: torch.Tensor, weight_B: torch.Tensor, ratio: flo
     elif mode == "slerp":
         return slerp(weight_A, weight_B, ratio)
     elif mode == "ties":
-        # 将 weight_A 和 weight_B 转换为 float32
-        weight_A = weight_A.to(torch.float32)
-        weight_B = weight_B.to(torch.float32)
+        # 将所有权重移动到 GPU
+        weight_A = weight_A.to(torch.float32).cuda()
+        weight_B = weight_B.to(torch.float32).cuda()
+        base_weight = base_weight.to(torch.float32).cuda()
 
-        # TIES 合并模式实现
         # 计算任务向量
-        delta_A = weight_A - weight_A.mean()
-        delta_B = weight_B - weight_B.mean()
+        delta_A = weight_A - base_weight
+        delta_B = weight_B - base_weight
 
-        # 构建子空间（这里使用简单的方式）
+        # 构建子空间
         subspace = torch.stack([delta_A.view(-1), delta_B.view(-1)], dim=1)
 
         # 计算子空间的基
@@ -95,12 +95,11 @@ def calculate_weights(weight_A: torch.Tensor, weight_B: torch.Tensor, ratio: flo
         # 从子空间还原
         interpolated_delta = U.matmul(interpolated_proj)
 
-        # 恢复原始形状
-        interpolated_weight = weight_A.mean() + interpolated_delta.view(weight_A.shape)
+        # 重构权重
+        interpolated_weight = base_weight + interpolated_delta.view(weight_A.shape)
 
-        # 如果输入是半精度，则转换回半精度
-        if weight_A.dtype == torch.float16:
-            interpolated_weight = interpolated_weight.to(torch.float16)
+        # 保持原始数据类型
+        interpolated_weight = interpolated_weight.to(torch.float16).cpu()
 
         return interpolated_weight
     else:
@@ -110,6 +109,7 @@ def calculate_weights(weight_A: torch.Tensor, weight_B: torch.Tensor, ratio: flo
 def process_layers(
     state_dict_A: dict[str, torch.Tensor], 
     state_dict_B: dict[str, torch.Tensor], 
+    state_dict_base: dict[str, torch.Tensor],
     config_dict: dict[str, float], 
     mode: str = "slerp"  # 默认的计算模式是 SLERP
 ) -> dict[str, torch.Tensor]:
@@ -121,7 +121,8 @@ def process_layers(
             layer_name_without_model = layer_name#.replace("model.", "")
             if state_dict_B and layer_name_without_model in state_dict_B:
                 weight_B = state_dict_B[layer_name_without_model]
-                merged_state_dict[layer_name] = calculate_weights(weight_A, weight_B, ratio, mode)
+                weight_base = state_dict_base[layer_name_without_model]
+                merged_state_dict[layer_name] = calculate_weights(weight_A, weight_B, weight_base, ratio, mode)
             else:
                 if ratio != 0.0:
                     merged_state_dict[layer_name] = weight_A * ratio
@@ -161,10 +162,24 @@ def main():
     output_path = args.output
     mode = args.mode  # 新增参数 mode
 
+    model_path = None
     if args.model:
         model_path = Path(args.model)
+        
+    if mode == "ties" and args.base_model:
+        base_model_path = Path(args.base_model)
     else:
-        model_path = None
+        print("ties模式需要提供基模型的路径 --base_model")
+        return
+
+    # 加载模型权重
+    state_dict_A = load_model(input_path, "cpu")
+    state_dict_B = None
+    if model_path:
+        state_dict_B = load_model(model_path, "cpu")
+    state_dict_base = None
+    if base_model_path:
+        state_dict_base = load_model(base_model_path, "cpu")
 
     # 如果没有提供输出路径，则根据输入路径和模式确定文件名
     if not output_path:
@@ -181,6 +196,8 @@ def main():
     state_dict_B = None
     if model_path:
         state_dict_B = load_model(model_path, "cpu")
+    if base_model_path:
+        state_dict_base = load_model(base_model_path, "cpu")
 
     if not config_path:
         # 没有提供config时，生成默认config文件
@@ -192,7 +209,7 @@ def main():
     config_dict = load_config(config_path)
     
     # 在调用 process_layers 时传递 mode 参数
-    merged_state_dict = process_layers(state_dict_A, state_dict_B, config_dict, mode)
+    merged_state_dict = process_layers(state_dict_A, state_dict_B, state_dict_base, config_dict, mode)
     
     format = output_path.suffix[1:]  # Remove the leading dot
     save_state_dict(merged_state_dict, output_path, format)  # Save merged state_dict
@@ -204,6 +221,7 @@ parser.add_argument("input", type=str, help="Path to input file. Must be a .safe
 parser.add_argument("config", type=str, nargs='?', help="Path to configuration file. If not provided, model layers will be printed.")
 parser.add_argument("--output", "-o", type=str, help="Path to output file. If not provided, defaults to input+_<mode>.ckpt.")
 parser.add_argument("--model", type=str, help="Path to model file. Must be a .safetensors or .ckpt file.")
+parser.add_argument("--base_model", type=str, help="TIES模式必写 基模型文件的路径，必须是 .safetensors 或 .ckpt 文件。")
 parser.add_argument("--mode", type=str, default="slerp", help="Mode of weight calculation: 'linear_combination', 'replace', 'slerp', 'ties'")  # 添加 'ties' 模式
 args = parser.parse_args()
 
