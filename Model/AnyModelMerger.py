@@ -60,7 +60,7 @@ def slerp(v0: torch.Tensor, v1: torch.Tensor, t: float) -> torch.Tensor:
         # 组合结果并恢复原始形状
         slerp_result = coeff_0 * v0 + coeff_1 * v1
 
-    return slerp_result
+    return slerp_result.view(v0.shape)
 
 def calculate_weights(weight_A: torch.Tensor, weight_B: torch.Tensor, ratio: float, mode: str) -> torch.Tensor:
     if mode == "replace":
@@ -69,7 +69,43 @@ def calculate_weights(weight_A: torch.Tensor, weight_B: torch.Tensor, ratio: flo
         return weight_A * (1 - ratio) + weight_B * ratio
     elif mode == "slerp":
         return slerp(weight_A, weight_B, ratio)
-    return weight_A
+    elif mode == "ties":
+        # 将 weight_A 和 weight_B 转换为 float32
+        weight_A = weight_A.to(torch.float32)
+        weight_B = weight_B.to(torch.float32)
+
+        # TIES 合并模式实现
+        # 计算任务向量
+        delta_A = weight_A - weight_A.mean()
+        delta_B = weight_B - weight_B.mean()
+
+        # 构建子空间（这里使用简单的方式）
+        subspace = torch.stack([delta_A.view(-1), delta_B.view(-1)], dim=1)
+
+        # 计算子空间的基
+        U, S, V = torch.svd(subspace)
+
+        # 投影到子空间
+        proj_A = U.t().matmul(delta_A.view(-1))
+        proj_B = U.t().matmul(delta_B.view(-1))
+
+        # 在子空间中插值
+        interpolated_proj = proj_A * (1 - ratio) + proj_B * ratio
+
+        # 从子空间还原
+        interpolated_delta = U.matmul(interpolated_proj)
+
+        # 恢复原始形状
+        interpolated_weight = weight_A.mean() + interpolated_delta.view(weight_A.shape)
+
+        # 如果输入是半精度，则转换回半精度
+        if weight_A.dtype == torch.float16:
+            interpolated_weight = interpolated_weight.to(torch.float16)
+
+        return interpolated_weight
+    else:
+        return weight_A
+
 
 def process_layers(
     state_dict_A: dict[str, torch.Tensor], 
@@ -132,11 +168,10 @@ def main():
 
     # 如果没有提供输出路径，则根据输入路径和模式确定文件名
     if not output_path:
-        mode_suffix = f"_{mode}"  # 根据合并模式添加后缀
         if model_path:
-            output_path = input_path.with_name(f"{input_path.stem}+{model_path.stem}_{mode_suffix}.ckpt")
+            output_path = input_path.with_name(f"{input_path.stem}+{model_path.stem}_{mode}.ckpt")
         else:
-            output_path = input_path.with_name(f"{input_path.stem}_{mode_suffix}.ckpt")
+            output_path = input_path.with_name(f"{input_path.stem}_{mode}.ckpt")
     elif not output_path.endswith(".safetensors") and not output_path.endswith(".ckpt"):
         output_path += ".ckpt"
 
@@ -158,7 +193,7 @@ def main():
     
     # 在调用 process_layers 时传递 mode 参数
     merged_state_dict = process_layers(state_dict_A, state_dict_B, config_dict, mode)
-
+    
     format = output_path.suffix[1:]  # Remove the leading dot
     save_state_dict(merged_state_dict, output_path, format)  # Save merged state_dict
     print(f"Saved to {output_path.absolute()}")
@@ -169,7 +204,7 @@ parser.add_argument("input", type=str, help="Path to input file. Must be a .safe
 parser.add_argument("config", type=str, nargs='?', help="Path to configuration file. If not provided, model layers will be printed.")
 parser.add_argument("--output", "-o", type=str, help="Path to output file. If not provided, defaults to input+_<mode>.ckpt.")
 parser.add_argument("--model", type=str, help="Path to model file. Must be a .safetensors or .ckpt file.")
-parser.add_argument("--mode", type=str, default="slerp", help="Mode of weight calculation: 'linear_combination', 'replace', 'slerp'")  # 默认的 mode 为 SLERP
+parser.add_argument("--mode", type=str, default="slerp", help="Mode of weight calculation: 'linear_combination', 'replace', 'slerp', 'ties'")  # 添加 'ties' 模式
 args = parser.parse_args()
 
 if __name__ == "__main__":
