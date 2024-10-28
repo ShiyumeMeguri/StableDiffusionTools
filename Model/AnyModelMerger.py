@@ -130,12 +130,13 @@ def main():
     else:
         model_path = None
 
-    # 如果没有提供输出路径，则使用input的路径加"merged"后缀，并默认保存为.ckpt格式
+    # 如果没有提供输出路径，则根据输入路径和模式确定文件名
     if not output_path:
+        mode_suffix = f"_{mode}"  # 根据合并模式添加后缀
         if model_path:
-            output_path = input_path.with_name(f"{input_path.stem}+{model_path.stem}_merged.ckpt")
+            output_path = input_path.with_name(f"{input_path.stem}+{model_path.stem}_{mode_suffix}.ckpt")
         else:
-            output_path = input_path.with_name(f"{input_path.stem}_merged.ckpt")
+            output_path = input_path.with_name(f"{input_path.stem}_{mode_suffix}.ckpt")
     elif not output_path.endswith(".safetensors") and not output_path.endswith(".ckpt"):
         output_path += ".ckpt"
 
@@ -166,7 +167,7 @@ def main():
 parser = argparse.ArgumentParser()
 parser.add_argument("input", type=str, help="Path to input file. Must be a .safetensors or .ckpt file.")
 parser.add_argument("config", type=str, nargs='?', help="Path to configuration file. If not provided, model layers will be printed.")
-parser.add_argument("--output", "-o", type=str, help="Path to output file. If not provided, defaults to input+merged.ckpt.")
+parser.add_argument("--output", "-o", type=str, help="Path to output file. If not provided, defaults to input+_<mode>.ckpt.")
 parser.add_argument("--model", type=str, help="Path to model file. Must be a .safetensors or .ckpt file.")
 parser.add_argument("--mode", type=str, default="slerp", help="Mode of weight calculation: 'linear_combination', 'replace', 'slerp'")  # 默认的 mode 为 SLERP
 args = parser.parse_args()
