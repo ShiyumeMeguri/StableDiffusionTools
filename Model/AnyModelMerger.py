@@ -111,7 +111,7 @@ def process_layers(
     state_dict_B: dict[str, torch.Tensor], 
     state_dict_base: dict[str, torch.Tensor],
     config_dict: dict[str, float], 
-    mode: str = "slerp"  # 默认的计算模式是 SLERP
+    mode: str = "ties"  # 默认的计算模式是 ties
 ) -> dict[str, torch.Tensor]:
     merged_state_dict = {}
 
