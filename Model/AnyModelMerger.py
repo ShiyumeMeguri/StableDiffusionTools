@@ -222,7 +222,7 @@ parser.add_argument("config", type=str, nargs='?', help="Path to configuration f
 parser.add_argument("--output", "-o", type=str, help="Path to output file. If not provided, defaults to input+_<mode>.ckpt.")
 parser.add_argument("--model", type=str, help="Path to model file. Must be a .safetensors or .ckpt file.")
 parser.add_argument("--base_model", type=str, help="TIES模式必写 基模型文件的路径，必须是 .safetensors 或 .ckpt 文件。")
-parser.add_argument("--mode", type=str, default="slerp", help="Mode of weight calculation: 'linear_combination', 'replace', 'slerp', 'ties'")  # 添加 'ties' 模式
+parser.add_argument("--mode", type=str, default="ties", help="Mode of weight calculation: 'linear_combination', 'replace', 'slerp', 'ties'")  # 添加 'ties' 模式
 args = parser.parse_args()
 
 if __name__ == "__main__":
