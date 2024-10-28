@@ -121,8 +121,13 @@ def process_layers(
             layer_name_without_model = layer_name#.replace("model.", "")
             if state_dict_B and layer_name_without_model in state_dict_B:
                 weight_B = state_dict_B[layer_name_without_model]
-                weight_base = state_dict_base[layer_name_without_model]
-                merged_state_dict[layer_name] = calculate_weights(weight_A, weight_B, weight_base, ratio, mode)
+
+                # 仅在 "ties" 模式下处理 base_model 相关的逻辑
+                if mode == "ties" and state_dict_base:
+                    weight_base = state_dict_base[layer_name_without_model]
+                    merged_state_dict[layer_name] = calculate_weights(weight_A, weight_B, weight_base, ratio, mode)
+                else:
+                    merged_state_dict[layer_name] = calculate_weights(weight_A, weight_B, None, ratio, mode)
             else:
                 if ratio != 0.0:
                     merged_state_dict[layer_name] = weight_A * ratio
@@ -165,12 +170,13 @@ def main():
     model_path = None
     if args.model:
         model_path = Path(args.model)
-        
-    if mode == "ties" and args.base_model:
+
+    base_model_path = None
+    if mode == "ties":
+        if not args.base_model:  # 检查 ties 模式下是否提供了 base_model 参数
+            print("TIES模式下必须提供基模型的路径。")
+            exit()
         base_model_path = Path(args.base_model)
-    else:
-        print("ties模式需要提供基模型的路径 --base_model")
-        return
 
     # 加载模型权重
     state_dict_A = load_model(input_path, "cpu")
@@ -192,13 +198,6 @@ def main():
 
     output_path = Path(output_path)
 
-    state_dict_A = load_model(input_path, "cpu")
-    state_dict_B = None
-    if model_path:
-        state_dict_B = load_model(model_path, "cpu")
-    if base_model_path:
-        state_dict_base = load_model(base_model_path, "cpu")
-
     if not config_path:
         # 没有提供config时，生成默认config文件
         config_path = input_path.with_name(input_path.stem + "_config.txt")
@@ -207,10 +206,10 @@ def main():
         return
 
     config_dict = load_config(config_path)
-    
+
     # 在调用 process_layers 时传递 mode 参数
     merged_state_dict = process_layers(state_dict_A, state_dict_B, state_dict_base, config_dict, mode)
-    
+
     format = output_path.suffix[1:]  # Remove the leading dot
     save_state_dict(merged_state_dict, output_path, format)  # Save merged state_dict
     print(f"Saved to {output_path.absolute()}")
