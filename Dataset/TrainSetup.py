@@ -78,31 +78,6 @@ def merge_captions(image_path, prompt_json_path):
 def create_config(path, params, data):
     with open(path, 'w') as f:
         f.write(data.format_map(params))
-
-def process_chara_json_file(file_path, tags):
-    with open(file_path, 'r') as f:
-        data = json.load(f)
-    
-    tags_array = tags.split(',')
-    
-    # 初始化一个新的字典来存放处理后的数据
-    new_data = {}
-    
-    # 遍历json文件中的所有节点
-    for key, value in data.items():
-        # 检查caption是否以数组第一个字符串为开头
-        if value["caption"].startswith(tags_array[0]):
-            # 如果是，那么查找里面有没有剩余的tag
-            remaining_tags = [tag for tag in tags_array[1:] if tag in value["caption"]]
-            
-            # 如果有，就只保留这些tag，其他的tag全部删除
-            if remaining_tags:
-                new_data[key] = {"caption": ", ".join(remaining_tags)}
-        
-    output_file_path = file_path.replace('.json', '_CharaPrompt.json')
-    with open(output_file_path, 'w') as f:
-        json.dump(new_data, f, indent=2)
-    return output_file_path
     
 finetune_toml_config = """[general]
 enable_bucket = true
@@ -137,6 +112,21 @@ batch_size = {batch_size}
   class_tokens = '{class_tokens}'
   num_repeats = 1
 """
+
+lora_toml_config = """[general]
+enable_bucket = true
+shuffle_caption = true
+keep_tokens = 1
+
+[[datasets]]
+resolution = {resolution}
+batch_size = {batch_size}
+
+  [[datasets.subsets]]
+  image_dir = '{image_path}'
+  class_tokens = '{class_tokens}'
+"""
+
 #训练通用配置
 base_batch_config = """
 {sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type Lion8bit --xformers --mixed_precision=fp16 --full_fp16 --fp8_base --save_every_n_epochs={save_every_n_epochs} --lr_scheduler="{lr_scheduler}" """# --sample_prompts {sample_prompts} --sample_sampler ddim --sample_every_n_epochs {save_every_n_epochs} """
@@ -175,10 +165,6 @@ def main():
         toml_params = {} 
         toml_params["resolution"] = globals()[f"{training_type.lower()}_resolution"]
         batch_size = int(globals()[f"{training_type.lower()}_batch_size"])
-        #if num_images > 200:
-        #    batch_size = int(batch_size * (num_images / 200))
-        #if batch_size >= 32:
-        #    batch_size = 32
         toml_params["batch_size"] = batch_size
         toml_params["image_path"] = image_path
         toml_params["prompt_json_path"] = prompt_json_path
@@ -186,7 +172,14 @@ def main():
         toml_params["class_tokens"] = args.reg_tokens
         toml_params["is_reg"] = str(args.reg_dir != '').lower()
         
-        toml_config = dreambooth_toml_config if args.reg_dir or training_type == "DreamBooth" else finetune_toml_config
+        # 根据训练类型选择对应的 toml 配置
+        if training_type == "DreamBooth" or args.reg_dir:
+            toml_config = dreambooth_toml_config
+        elif training_type == "LoRA":
+            toml_config = lora_toml_config
+        else:
+            toml_config = finetune_toml_config
+
         create_config(toml_path_new, toml_params, toml_config)
         
         #生成bat配置
@@ -206,8 +199,8 @@ def main():
             train_script = "sdxl_train"
             bat_config += dreambooth_batch_config
             
-        if not args.chara:  #                                                                                          lion优化器的话必须64batch以上 4096更好 32768最好
-            bat_config += f"""--flip_aug --gradient_checkpointing --loss_type smooth_l1 --optimizer_args betas=0.9,0.95 --color_aug --flip_aug --random_crop """ # --face_crop_aug_range 1.0,3.0 --cache_text_encoder_outputs weight_decay={weight_decay}  --gradient_accumulation_steps=32 
+        #                                                                                          lion优化器的话必须64batch以上 4096更好 32768最好
+        bat_config += f"""--flip_aug --gradient_checkpointing --loss_type smooth_l1 --optimizer_args betas=0.9,0.95 --color_aug --flip_aug --random_crop """ # --face_crop_aug_range 1.0,3.0 --cache_text_encoder_outputs weight_decay={weight_decay}  --gradient_accumulation_steps=32 
         #if noise_offset:
         #    bat_config += f"""--noise_offset {noise_offset} """
         
@@ -253,10 +246,8 @@ parser = argparse.ArgumentParser(description='自动化配置数据集.')
 parser.add_argument('path', type=str, help='the folder path to process')
 parser.add_argument('name', type=str, help='folder parent name')
 
-parser.add_argument('--chara', type=str, default='', help='chara prompt')
-
 parser.add_argument('--reg_dir', type=str, default='', help='the folder path to process')
-parser.add_argument('--reg_tokens', type=str, default='', help='reg prompt')
+parser.add_argument('--reg_tokens', type=str, default='girl', help='reg prompt')
 args = parser.parse_args()
 
 if __name__ == "__main__":
