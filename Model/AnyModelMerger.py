@@ -26,9 +26,14 @@ def load_model(path: Path, device: str) -> dict[str, torch.Tensor]:
     else:
         ckpt = torch.load(path, map_location=device)
         return ckpt.get("state_dict", ckpt)
-
+        
 def slerp(v0: torch.Tensor, v1: torch.Tensor, t: float) -> torch.Tensor:
     """执行两个张量之间的球面线性插值（SLERP）。"""
+    # 将张量移动到CUDA设备上
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    v0 = v0.to(device)
+    v1 = v1.to(device)
+
     # 将张量展平成一维
     v0_flat = v0.view(-1)
     v1_flat = v1.view(-1)
@@ -60,7 +65,8 @@ def slerp(v0: torch.Tensor, v1: torch.Tensor, t: float) -> torch.Tensor:
         # 组合结果并恢复原始形状
         slerp_result = coeff_0 * v0 + coeff_1 * v1
 
-    return slerp_result.view(v0.shape)
+    # 将结果移动回CPU并恢复原始形状
+    return slerp_result.view(v0.shape).cpu()
 
 def calculate_weights(weight_A: torch.Tensor, weight_B: torch.Tensor, base_weight: torch.Tensor, ratio: float, mode: str) -> torch.Tensor:
     if mode == "replace":
@@ -111,7 +117,7 @@ def process_layers(
     state_dict_B: dict[str, torch.Tensor], 
     state_dict_base: dict[str, torch.Tensor],
     config_dict: dict[str, float], 
-    mode: str = "ties"  # 默认的计算模式是 ties
+    mode: str = "slerp"  # 默认的计算模式是 ties
 ) -> dict[str, torch.Tensor]:
     merged_state_dict = {}
 
@@ -221,7 +227,7 @@ parser.add_argument("config", type=str, nargs='?', help="Path to configuration f
 parser.add_argument("--output", "-o", type=str, help="Path to output file. If not provided, defaults to input+_<mode>.ckpt.")
 parser.add_argument("--model", type=str, help="Path to model file. Must be a .safetensors or .ckpt file.")
 parser.add_argument("--base_model", type=str, help="TIES模式必写 基模型文件的路径，必须是 .safetensors 或 .ckpt 文件。")
-parser.add_argument("--mode", type=str, default="ties", help="Mode of weight calculation: 'linear_combination', 'replace', 'slerp', 'ties'")  # 添加 'ties' 模式
+parser.add_argument("--mode", type=str, default=" 'slerp", help="Mode of weight calculation: 'linear_combination', 'replace', 'slerp', 'ties'")  # 添加 'ties' 模式
 args = parser.parse_args()
 
 if __name__ == "__main__":

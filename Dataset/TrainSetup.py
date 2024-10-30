@@ -90,7 +90,7 @@ batch_size = {batch_size}
 
   [[datasets.subsets]]
   image_dir = '{image_path}'
-  metadata_file = '{prompt_json_path}'
+  class_tokens = 'girl'
 """
 
 dreambooth_toml_config = """[general]
@@ -200,7 +200,7 @@ def main():
             bat_config += dreambooth_batch_config
             
         #                                                                                          lion优化器的话必须64batch以上 4096更好 32768最好
-        bat_config += f"""--flip_aug --gradient_checkpointing --loss_type smooth_l1 --optimizer_args betas=0.9,0.95 --color_aug --flip_aug --random_crop """ # --face_crop_aug_range 1.0,3.0 --cache_text_encoder_outputs weight_decay={weight_decay}  --gradient_accumulation_steps=32 
+        bat_config += f"""--flip_aug --gradient_checkpointing --loss_type smooth_l1 --optimizer_args betas=0.9,0.95 --flip_aug --random_crop """ # --color_aug --face_crop_aug_range 1.0,3.0 --cache_text_encoder_outputs weight_decay={weight_decay}  --gradient_accumulation_steps=32 
         #if noise_offset:
         #    bat_config += f"""--noise_offset {noise_offset} """
         
