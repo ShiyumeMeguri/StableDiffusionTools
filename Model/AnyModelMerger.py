@@ -1,5 +1,6 @@
 ﻿from typing import Any, Literal
 from pathlib import Path
+import sys
 import torch
 import argparse
 import numpy as np
@@ -26,45 +27,41 @@ def load_model(path: Path, device: str) -> dict[str, torch.Tensor]:
     else:
         ckpt = torch.load(path, map_location=device)
         return ckpt.get("state_dict", ckpt)
-        
+
 def slerp(v0: torch.Tensor, v1: torch.Tensor, t: float) -> torch.Tensor:
-    """执行两个张量之间的球面线性插值（SLERP）。"""
     v0 = v0.to(torch.float32).cuda()
     v1 = v1.to(torch.float32).cuda()
-
-    # 将张量展平成一维
     v0_flat = v0.view(-1)
     v1_flat = v1.view(-1)
-
-    # 计算范数
     v0_norm = torch.norm(v0_flat)
     v1_norm = torch.norm(v1_flat)
-
-    # 归一化
     v0_unit = v0_flat / v0_norm
     v1_unit = v1_flat / v1_norm
-
-    # 计算点积并进行数值稳定性处理
-    dot = torch.dot(v0_unit, v1_unit)
-    dot = torch.clamp(dot, -1.0, 1.0)
-
-    # 计算角度和sin值
+    dot = torch.clamp(torch.dot(v0_unit, v1_unit), -1.0, 1.0)
     omega = torch.acos(dot)
     sin_omega = torch.sin(omega)
-
-    # 处理角度过小的情况，避免除以零
     if sin_omega.abs() < 1e-6:
-        # 使用线性插值
         slerp_result = (1.0 - t) * v0 + t * v1
     else:
-        # 计算插值权重
         coeff_0 = torch.sin((1.0 - t) * omega) / sin_omega
         coeff_1 = torch.sin(t * omega) / sin_omega
-        # 组合结果并恢复原始形状
         slerp_result = coeff_0 * v0 + coeff_1 * v1
-
-    # 将结果移动回CPU并恢复原始形状
     return slerp_result.view(v0.shape).to(torch.float16).cpu()
+
+def ties(weight_A: torch.Tensor, weight_B: torch.Tensor, base_weight: torch.Tensor, ratio: float) -> torch.Tensor:
+    weight_A = weight_A.to(torch.float32).cuda()
+    weight_B = weight_B.to(torch.float32).cuda()
+    base_weight = base_weight.to(torch.float32).cuda()
+    delta_A = weight_A - base_weight
+    delta_B = weight_B - base_weight
+    subspace = torch.stack([delta_A.view(-1), delta_B.view(-1)], dim=1)
+    U, S, V = torch.svd(subspace)
+    proj_A = U.t().matmul(delta_A.view(-1))
+    proj_B = U.t().matmul(delta_B.view(-1))
+    interpolated_proj = proj_A * (1 - ratio) + proj_B * ratio
+    interpolated_delta = U.matmul(interpolated_proj)
+    interpolated_weight = base_weight + interpolated_delta.view(weight_A.shape)
+    return interpolated_weight.to(torch.float16).cpu()
 
 def calculate_weights(weight_A: torch.Tensor, weight_B: torch.Tensor, base_weight: torch.Tensor, ratio: float, mode: str) -> torch.Tensor:
     if mode == "replace":
@@ -74,71 +71,39 @@ def calculate_weights(weight_A: torch.Tensor, weight_B: torch.Tensor, base_weigh
     elif mode == "slerp":
         return slerp(weight_A, weight_B, ratio)
     elif mode == "ties":
-        # 将所有权重移动到 GPU
-        weight_A = weight_A.to(torch.float32).cuda()
-        weight_B = weight_B.to(torch.float32).cuda()
-        base_weight = base_weight.to(torch.float32).cuda()
-
-        # 计算任务向量
-        delta_A = weight_A - base_weight
-        delta_B = weight_B - base_weight
-
-        # 构建子空间
-        subspace = torch.stack([delta_A.view(-1), delta_B.view(-1)], dim=1)
-
-        # 计算子空间的基
-        U, S, V = torch.svd(subspace)
-
-        # 投影到子空间
-        proj_A = U.t().matmul(delta_A.view(-1))
-        proj_B = U.t().matmul(delta_B.view(-1))
-
-        # 在子空间中插值
-        interpolated_proj = proj_A * (1 - ratio) + proj_B * ratio
-
-        # 从子空间还原
-        interpolated_delta = U.matmul(interpolated_proj)
-
-        # 重构权重
-        interpolated_weight = base_weight + interpolated_delta.view(weight_A.shape)
-
-        # 保持原始数据类型
-        interpolated_weight = interpolated_weight.to(torch.float16).cpu()
-
-        return interpolated_weight
+        return ties(weight_A, weight_B, base_weight, ratio)
     else:
-        return weight_A
-
+        print(f"错误：不支持的 mode '{mode}'。请选择 'replace'，'linear_combination'，'slerp' 或 'ties'。")
+        sys.exit(1)
 
 def process_layers(
     state_dict_A: dict[str, torch.Tensor], 
     state_dict_B: dict[str, torch.Tensor], 
     state_dict_base: dict[str, torch.Tensor],
     config_dict: dict[str, float], 
-    mode: str = "slerp"  # 默认的计算模式是 ties
+    mode: str = "slerp"
 ) -> dict[str, torch.Tensor]:
     merged_state_dict = {}
 
     for layer_name, weight_A in tqdm(state_dict_A.items(), desc="Processing layers"):
-        if layer_name in config_dict:
-            ratio = config_dict[layer_name]
-            layer_name_without_model = layer_name#.replace("model.", "")
-            if state_dict_B and layer_name_without_model in state_dict_B:
-                weight_B = state_dict_B[layer_name_without_model]
-
-                # 仅在 "ties" 模式下处理 base_model 相关的逻辑
-                if mode == "ties" and state_dict_base:
-                    weight_base = state_dict_base[layer_name_without_model]
-                    merged_state_dict[layer_name] = calculate_weights(weight_A, weight_B, weight_base, ratio, mode)
-                else:
-                    merged_state_dict[layer_name] = calculate_weights(weight_A, weight_B, None, ratio, mode)
-            else:
-                if ratio != 0.0:
-                    merged_state_dict[layer_name] = weight_A * ratio
-                else:
-                    merged_state_dict[layer_name] = weight_A
-        else:
+        ratio = config_dict.get(layer_name)
+        if ratio is None:
             print(f"跳过层: {layer_name}")
+            continue
+
+        if ratio == 0.0:
+            merged_state_dict[layer_name] = weight_A
+            continue
+
+        weight_B = state_dict_B.get(layer_name) if state_dict_B else None
+
+        if mode == "ties" and state_dict_base and weight_B is not None:
+            weight_base = state_dict_base[layer_name]
+            merged_state_dict[layer_name] = calculate_weights(weight_A, weight_B, weight_base, ratio, mode)
+        elif weight_B is not None:
+            merged_state_dict[layer_name] = calculate_weights(weight_A, weight_B, None, ratio, mode)
+        else:
+            merged_state_dict[layer_name] = weight_A * ratio
 
     return merged_state_dict
 
