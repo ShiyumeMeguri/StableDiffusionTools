@@ -64,7 +64,7 @@ def run_scripts(image_path):
     
     if not txt_files:
         print('找不到txt文件, 使用AI生成prompt')
-        subprocess.run(f'{sd_scripts_path}finetune/tag_images_by_wd14_tagger.py --batch_size 1 --caption_extension .txt --caption_separator ,  --debug --frequency_tags --max_data_loader_n_workers 2 --onnx --remove_underscore --repo_id SmilingWolf/wd-v1-4-convnextv2-tagger-v2 "{image_path}"', shell=True)
+        subprocess.run(f'{sd_scripts_path}finetune/tag_images_by_wd14_tagger.py --batch_size 4 --caption_extension .txt --caption_separator ,  --debug --frequency_tags --max_data_loader_n_workers 2 --onnx --remove_underscore --repo_id SmilingWolf/wd-v1-4-convnextv2-tagger-v2 "{image_path}"', shell=True)
     else:
         print('找到txt文件, 跳过 tag_images_by_wd14_tagger.py')
 
@@ -76,7 +76,7 @@ def merge_captions(image_path, prompt_json_path):
     subprocess.run(f'{sd_scripts_path}finetune/merge_captions_to_metadata.py --caption_extension=.txt --full_path "{image_path}" {prompt_json_path}', shell=True)
 
 def create_config(path, params, data):
-    with open(path, 'w') as f:
+    with open(path, 'w', encoding='utf-8') as f:
         f.write(data.format_map(params))
     
 finetune_toml_config = """[general]
@@ -90,7 +90,7 @@ batch_size = {batch_size}
 
   [[datasets.subsets]]
   image_dir = '{image_path}'
-  class_tokens = 'girl'
+  metadata_file = '{prompt_json_path}'
 """
 
 dreambooth_toml_config = """[general]
@@ -104,6 +104,7 @@ batch_size = {batch_size}
 
   [[datasets.subsets]]
   image_dir = '{image_path}'
+  class_tokens = '{class_tokens}'
   caption_extension = '.txt'
   
   [[datasets.subsets]]
@@ -125,11 +126,21 @@ batch_size = {batch_size}
   [[datasets.subsets]]
   image_dir = '{image_path}'
   class_tokens = '{class_tokens}'
+  caption_extension = '.txt'            # キャプションファイルの拡張子　.txt を使う場合には書き換える
+  
+  #[[datasets.subsets]]
+  #is_reg = true
+  #image_dir = '{reg_path}'                      # 正則化画像を入れたフォルダを指定
+  #class_tokens = '{class_tokens}'                     # class を指定
+  #num_repeats = 1                           # 正則化画像の繰り返し回数、基本的には1でよい
 """
 
 #训练通用配置
 base_batch_config = """
-{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type Lion8bit --xformers --mixed_precision=fp16 --full_fp16 --fp8_base --save_every_n_epochs={save_every_n_epochs} --lr_scheduler="{lr_scheduler}" """# --sample_prompts {sample_prompts} --sample_sampler ddim --sample_every_n_epochs {save_every_n_epochs} """
+{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type Lion8bit --xformers --mixed_precision=fp16 --full_fp16 --fp8_base --save_every_n_steps={save_every_n_steps} --lr_scheduler="{lr_scheduler}" --zero_terminal_snr --min_snr_gamma 5 --v_pred_like_loss 0.1 """
+# 学习细节用min_snr_gamma或debiased_estimation_loss 只能选一个
+# v_pred_like_loss 0.1 越高细节学习越好
+# zero_terminal_snr 增强纯噪声还原能力 并避免伪噪声污染
 #--cache_latents 恢复 为了更多的batch
 finetune_batch_config = """--learning_rate={lr} """
 
@@ -200,7 +211,7 @@ def main():
             bat_config += dreambooth_batch_config
             
         #                                                                                          lion优化器的话必须64batch以上 4096更好 32768最好
-        bat_config += f"""--flip_aug --gradient_checkpointing --loss_type smooth_l1 --optimizer_args betas=0.9,0.95 --flip_aug --random_crop """ # --color_aug --face_crop_aug_range 1.0,3.0 --cache_text_encoder_outputs weight_decay={weight_decay}  --gradient_accumulation_steps=32 
+        bat_config += f"""--gradient_checkpointing --loss_type l2 --optimizer_args betas=0.9,0.999 --flip_aug --random_crop --gradient_accumulation_steps=128 """ # --color_aug --face_crop_aug_range 1.0,3.0 --cache_text_encoder_outputs weight_decay={weight_decay}   
         #if noise_offset:
         #    bat_config += f"""--noise_offset {noise_offset} """
         
@@ -226,7 +237,7 @@ def main():
         #    base_train_step = int(base_train_step * (num_images / 500))
         bat_params["train_step"] = base_train_step
         bat_params["lr"] = lr
-        bat_params["save_every_n_epochs"] = math.ceil(16 / (num_images / 16))
+        bat_params["save_every_n_steps"] = max(50, round((math.log(num_images + 1, 10) * 100) / 50) * 50)
         #添加LoRA参数
         use_lora = training_type == "LoRA"
         if use_lora:
