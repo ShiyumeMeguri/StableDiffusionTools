@@ -127,6 +127,8 @@ batch_size = {batch_size}
   image_dir = '{image_path}'
   class_tokens = '{class_tokens}'
   caption_extension = '.txt'            # キャプションファイルの拡張子　.txt を使う場合には書き換える
+  caption_prefix: ''
+  caption_suffix: ''
   
   #[[datasets.subsets]]
   #is_reg = true
@@ -211,9 +213,9 @@ def main():
             bat_config += dreambooth_batch_config
             
         #                                                                                          lion优化器的话必须64batch以上 4096更好 32768最好
-        bat_config += f"""--gradient_checkpointing --loss_type l2 --optimizer_args betas=0.9,0.999 --flip_aug --random_crop --gradient_accumulation_steps=128 """ # --color_aug --face_crop_aug_range 1.0,3.0 --cache_text_encoder_outputs weight_decay={weight_decay}   
-        #if noise_offset:
-        #    bat_config += f"""--noise_offset {noise_offset} """
+        bat_config += f"""--gradient_checkpointing --loss_type l2 --optimizer_args betas=0.9,0.95 --flip_aug --random_crop  --color_aug --debiased_estimation_loss --ip_noise_gamma 0.05 --gradient_accumulation_steps=128 """ # --face_crop_aug_range 1.0,3.0 --cache_text_encoder_outputs weight_decay={weight_decay}   
+        if noise_offset:
+            bat_config += f"""--noise_offset {noise_offset} """
         
         lr = dreambooth_lr if training_type == "DreamBooth" else finetune_lr
         model_output_dir = f"{base_path}/model/{folder_name}_{image_name}"
