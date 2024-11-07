@@ -139,8 +139,7 @@ batch_size = {batch_size}
 
 #训练通用配置
 base_batch_config = """
-{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type Lion8bit --xformers --mixed_precision=fp16 --full_fp16 --fp8_base --save_every_n_steps={save_every_n_steps} --lr_scheduler="{lr_scheduler}" --zero_terminal_snr --min_snr_gamma 5 --v_pred_like_loss 0.1 """
-# 学习细节用min_snr_gamma或debiased_estimation_loss 只能选一个
+{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type Lion8bit --xformers --mixed_precision=fp16 --full_fp16 --fp8_base --save_every_n_steps={save_every_n_steps} --lr_scheduler="{lr_scheduler}" --zero_terminal_snr --v_pred_like_loss 0.1 """
 # v_pred_like_loss 0.1 越高细节学习越好
 # zero_terminal_snr 增强纯噪声还原能力 并避免伪噪声污染
 #--cache_latents 恢复 为了更多的batch
@@ -212,8 +211,8 @@ def main():
             train_script = "sdxl_train"
             bat_config += dreambooth_batch_config
             
-        #                                                                                          lion优化器的话必须64batch以上 4096更好 32768最好
-        bat_config += f"""--gradient_checkpointing --loss_type l2 --optimizer_args betas=0.9,0.95 --flip_aug --random_crop  --color_aug --debiased_estimation_loss --ip_noise_gamma 0.05 --gradient_accumulation_steps=128 """ # --face_crop_aug_range 1.0,3.0 --cache_text_encoder_outputs weight_decay={weight_decay}   
+        #                                                                                          --ip_noise_gamma越大学得越平滑  # 学习细节用--min_snr_gamma 5 和 debiased_estimation_loss二选一 两个一起没啥意义
+        bat_config += f"""--gradient_checkpointing --loss_type l2 --optimizer_args betas=0.9,0.95 --flip_aug --random_crop  --color_aug --debiased_estimation_loss --ip_noise_gamma 0.1 --gradient_accumulation_steps=128 """ # --face_crop_aug_range 1.0,3.0 --cache_text_encoder_outputs weight_decay={weight_decay}   
         if noise_offset:
             bat_config += f"""--noise_offset {noise_offset} """
         
