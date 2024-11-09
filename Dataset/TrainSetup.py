@@ -237,7 +237,7 @@ def main():
         base_train_step = int(globals()[f"{training_type.lower()}_train_step"])
         bat_params["train_step"] = base_train_step
         bat_params["lr"] = lr
-        bat_params["save_every_n_steps"] = max(50, round((math.log(num_images + 1, 10) * 100) / 50) * 50)
+        bat_params["save_every_n_steps"] = int(max(50, round((math.log(num_images + 1, 10) * 100) / 50) * 50) / (int(batch_size) * int(gradient_accumulation_steps)))
         #添加LoRA参数
         use_lora = training_type == "LoRA"
         if use_lora:
