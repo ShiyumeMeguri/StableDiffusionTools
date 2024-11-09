@@ -27,6 +27,7 @@ sample_prompts					=	config.get('DEFAULT', 'sample_prompts')
 
 weight_decay					=	config.get('DEFAULT', 'weight_decay')
 noise_offset					=	config.get('DEFAULT', 'noise_offset')
+gradient_accumulation_steps     =	config.get('DEFAULT', 'gradient_accumulation_steps')
 	
 finetune_lr						=	config.get('DEFAULT', 'finetune_lr')
 finetune_batch_size				=	config.get('DEFAULT', 'finetune_batch_size')
@@ -64,7 +65,7 @@ def run_scripts(image_path):
     
     if not txt_files:
         print('找不到txt文件, 使用AI生成prompt')
-        subprocess.run(f'{sd_scripts_path}finetune/tag_images_by_wd14_tagger.py --batch_size 4 --caption_extension .txt --caption_separator ,  --debug --frequency_tags --max_data_loader_n_workers 2 --onnx --remove_underscore --repo_id SmilingWolf/wd-v1-4-convnextv2-tagger-v2 "{image_path}"', shell=True)
+        subprocess.run(f'{sd_scripts_path}finetune/tag_images_by_wd14_tagger.py --batch_size 1 --caption_extension .txt --caption_separator ,  --debug --frequency_tags --max_data_loader_n_workers 2 --onnx --remove_underscore --repo_id SmilingWolf/wd-v1-4-convnextv2-tagger-v2 "{image_path}"', shell=True)
     else:
         print('找到txt文件, 跳过 tag_images_by_wd14_tagger.py')
 
@@ -127,8 +128,8 @@ batch_size = {batch_size}
   image_dir = '{image_path}'
   class_tokens = '{class_tokens}'
   caption_extension = '.txt'            # キャプションファイルの拡張子　.txt を使う場合には書き換える
-  caption_prefix: ''
-  caption_suffix: ''
+  #caption_prefix: ''
+  #caption_suffix: ''
   
   #[[datasets.subsets]]
   #is_reg = true
@@ -139,8 +140,8 @@ batch_size = {batch_size}
 
 #训练通用配置
 base_batch_config = """
-{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type Lion8bit --xformers --mixed_precision=fp16 --full_fp16 --fp8_base --save_every_n_steps={save_every_n_steps} --lr_scheduler="{lr_scheduler}" --zero_terminal_snr --v_pred_like_loss 0.1 """
-# v_pred_like_loss 0.1 越高细节学习越好
+{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type Lion8bit --xformers --mixed_precision=fp16 --full_fp16 --fp8_base --save_every_n_steps={save_every_n_steps} --lr_scheduler="{lr_scheduler}" --zero_terminal_snr """
+# v_pred_like_loss 0.1 越高细节学习越好 冲突不要了
 # zero_terminal_snr 增强纯噪声还原能力 并避免伪噪声污染
 #--cache_latents 恢复 为了更多的batch
 finetune_batch_config = """--learning_rate={lr} """
@@ -211,10 +212,10 @@ def main():
             train_script = "sdxl_train"
             bat_config += dreambooth_batch_config
             
-        #                                                                                          --ip_noise_gamma越大学得越平滑  # 学习细节用--min_snr_gamma 5 和 debiased_estimation_loss二选一 两个一起没啥意义
-        bat_config += f"""--gradient_checkpointing --loss_type l2 --optimizer_args betas=0.9,0.95 --flip_aug --random_crop  --color_aug --debiased_estimation_loss --ip_noise_gamma 0.1 --gradient_accumulation_steps=128 """ # --face_crop_aug_range 1.0,3.0 --cache_text_encoder_outputs weight_decay={weight_decay}   
-        if noise_offset:
-            bat_config += f"""--noise_offset {noise_offset} """
+        #                                                                                          --ip_noise_gamma越大学得越平滑  # 学习细节用--min_snr_gamma 5 和 debiased_estimation_loss二选一 两个一起没啥意义 不能使用 --flip_aug --random_crop  --color_aug
+        bat_config += f"""--gradient_checkpointing --loss_type l2 --optimizer_args betas=0.9,0.95 --debiased_estimation_loss --ip_noise_gamma 0.1 --gradient_accumulation_steps={gradient_accumulation_steps} """ # --face_crop_aug_range 1.0,3.0 --cache_text_encoder_outputs weight_decay={weight_decay}   
+        #if noise_offset: # 开启零终端snr就不用
+        #    bat_config += f"""--noise_offset {noise_offset} """
         
         lr = dreambooth_lr if training_type == "DreamBooth" else finetune_lr
         model_output_dir = f"{base_path}/model/{folder_name}_{image_name}"
@@ -234,8 +235,6 @@ def main():
         bat_params["toml_path"] = toml_path_new
         bat_params["save_model_as"] = save_model_as
         base_train_step = int(globals()[f"{training_type.lower()}_train_step"])
-        #if num_images > 500:
-        #    base_train_step = int(base_train_step * (num_images / 500))
         bat_params["train_step"] = base_train_step
         bat_params["lr"] = lr
         bat_params["save_every_n_steps"] = max(50, round((math.log(num_images + 1, 10) * 100) / 50) * 50)
