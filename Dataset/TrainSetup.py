@@ -128,8 +128,8 @@ batch_size = {batch_size}
   image_dir = '{image_path}'
   class_tokens = '{class_tokens}'
   caption_extension = '.txt'            # キャプションファイルの拡張子　.txt を使う場合には書き換える
-  #caption_prefix: ''
-  #caption_suffix: ''
+  #caption_prefix = ''
+  #caption_suffix = ''
   
   #[[datasets.subsets]]
   #is_reg = true
