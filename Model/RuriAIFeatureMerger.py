@@ -24,17 +24,6 @@ def save_model(state_dict: dict, path: Path) -> None:
     else:
         torch.save({"state_dict": state_dict}, path)
 
-def resize_tensor_to_match(tensor, target_shape):
-    """将张量调整为目标形状"""
-    if tensor.shape != target_shape:
-        # 假设张量是至少二维的，可以用 interpolate 缩放
-        if tensor.dim() >= 2:
-            tensor = F.interpolate(tensor.unsqueeze(0), size=target_shape[-2:], mode='bilinear', align_corners=False)
-            return tensor.squeeze(0)
-        else:
-            raise ValueError("张量维度小于2，无法使用插值缩放")
-    return tensor
-    
 def compute_enhanced_model(model_a, model_b, base_model_a, base_model_b, same_ratio, reverse_ratio, device='cuda'):
     """在GPU上计算增强模型，融合模型A和B的特征，同时避免负数削弱特征"""
     enhanced_model = {}
@@ -44,10 +33,6 @@ def compute_enhanced_model(model_a, model_b, base_model_a, base_model_b, same_ra
         a_layer = model_a[layer_name].to(device)
         b_layer = model_b[layer_name].to(device) if layer_name in model_b else a_layer
 
-        # 如果形状不匹配，将模型B的层调整为模型A的层形状
-        if a_layer.shape != b_layer.shape:
-            b_layer = resize_tensor_to_match(b_layer, a_layer.shape)
-        
         # 如果有 base_model_a 和 base_model_b，计算差异；否则直接相减
         if base_model_a and base_model_b:
             base_layer_a = base_model_a[layer_name].to(device) if base_model_a and layer_name in base_model_a else a_layer
@@ -60,6 +45,11 @@ def compute_enhanced_model(model_a, model_b, base_model_a, base_model_b, same_ra
             delta_a = a_layer
             delta_b = b_layer
             
+        # 几种计算方式在Animagine和Pony组合时的情况 
+        #-- 破坏一半(效果还行) 
+        #-+ 不会破坏(效果更好) 
+        #+- 破坏殆尽 
+        #++ 破坏殆尽
         diff = torch.zeros_like(a_layer, device=device)
 
         # 情况1：delta_a 和 delta_b 同号，使用 delta_b - delta_a 计算差异
