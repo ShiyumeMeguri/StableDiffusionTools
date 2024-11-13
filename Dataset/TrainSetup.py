@@ -215,8 +215,8 @@ def main():
             
         #                                                                                          --ip_noise_gamma越大学得越平滑  # 学习细节用--min_snr_gamma 5 和 debiased_estimation_loss二选一 两个一起没啥意义 不能使用 --flip_aug --random_crop  --color_aug
         bat_config += f"""--gradient_checkpointing --loss_type l2 --optimizer_args betas=0.9,0.95 --debiased_estimation_loss --ip_noise_gamma 0.1 --gradient_accumulation_steps={gradient_accumulation_steps} """ # --face_crop_aug_range 1.0,3.0 --cache_text_encoder_outputs weight_decay={weight_decay}   
-        if noise_offset: # 开启零终端snr就不用
-            bat_config += f"""--noise_offset {noise_offset} """
+        #if noise_offset: # 开启零终端snr就不用
+        #    bat_config += f"""--noise_offset {noise_offset} """
         
         lr = dreambooth_lr if training_type == "DreamBooth" else finetune_lr
         model_output_dir = f"{base_path}/model/{folder_name}_{image_name}"
