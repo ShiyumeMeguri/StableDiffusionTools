@@ -141,9 +141,9 @@ batch_size = {batch_size}
 
 #训练通用配置
 base_batch_config = """
-{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type Lion8bit --xformers --mixed_precision=fp16 --full_fp16 --fp8_base --save_every_n_steps={save_every_n_steps} --lr_scheduler="{lr_scheduler}" --zero_terminal_snr """
+{sd_scripts_path}{train_script}.py --pretrained_model_name_or_path={base_model} --dataset_config="{toml_path}" --output_dir={output_dir} --output_name={output_name} --save_model_as={save_model_as} --max_train_steps={train_step} --optimizer_type Lion8bit --xformers --mixed_precision=fp16 --full_fp16 --fp8_base --save_every_n_steps={save_every_n_steps} --lr_scheduler="{lr_scheduler}" """
 # v_pred_like_loss 0.1 越高细节学习越好 冲突不要了
-# zero_terminal_snr 增强纯噪声还原能力 并避免伪噪声污染
+# zero_terminal_snr 增强纯噪声还原能力 并避免伪噪声污染和--debiased_estimation_loss --ip_noise_gamma 0.1冲突 会变紫
 #--cache_latents 恢复 为了更多的batch
 finetune_batch_config = """--learning_rate={lr} """
 
@@ -215,8 +215,8 @@ def main():
             
         #                                                                                          --ip_noise_gamma越大学得越平滑  # 学习细节用--min_snr_gamma 5 和 debiased_estimation_loss二选一 两个一起没啥意义 不能使用 --flip_aug --random_crop  --color_aug
         bat_config += f"""--gradient_checkpointing --loss_type l2 --optimizer_args betas=0.9,0.95 --debiased_estimation_loss --ip_noise_gamma 0.1 --gradient_accumulation_steps={gradient_accumulation_steps} """ # --face_crop_aug_range 1.0,3.0 --cache_text_encoder_outputs weight_decay={weight_decay}   
-        #if noise_offset: # 开启零终端snr就不用
-        #    bat_config += f"""--noise_offset {noise_offset} """
+        if noise_offset: # 开启零终端snr就不用
+            bat_config += f"""--noise_offset {noise_offset} """
         
         lr = dreambooth_lr if training_type == "DreamBooth" else finetune_lr
         model_output_dir = f"{base_path}/model/{folder_name}_{image_name}"
