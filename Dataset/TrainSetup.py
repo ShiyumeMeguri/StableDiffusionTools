@@ -126,8 +126,9 @@ batch_size = {batch_size}
 
   [[datasets.subsets]]
   image_dir = '{image_path}'
-  class_tokens = '{class_tokens}'
-  caption_extension = '.txt'            # キャプションファイルの拡張子　.txt を使う場合には書き換える
+  metadata_file = '{prompt_json_path}'
+  #class_tokens = '{class_tokens}'
+  #caption_extension = '.txt'            # キャプションファイルの拡張子　.txt を使う場合には書き換える
   #caption_prefix = ''
   #caption_suffix = ''
   
